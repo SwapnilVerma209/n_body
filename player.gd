@@ -1,8 +1,9 @@
 extends Camera3D
 
-var _accel
-const _angular_accel := PI / (1.0**2 / 2.0)
-const _max_angular_speed := 2.0 * PI
+const _ACCEL := Global.MAX_AXIS_DIST / (5.0**2 / 2.0)
+const _MAX_SPEED := _ACCEL * 5.0
+const _ANGULAR_ACCEL := PI / (1.0**2 / 2.0)
+const _MAX_ANGULAR_SPEED := 2.0 * PI
 
 var _speed := 0.0
 var _angular_speed := 0.0
@@ -12,7 +13,6 @@ var _angular_speed := 0.0
 ## facing towards the origin
 func _ready() -> void:
 	far = 2e11
-	_accel = Global.MAX_AXIS_DIST / (5.0**2 / 2.0)
 	position = 10.0 * Vector3(1.0, 1.0, 1.0)
 	transform = transform.looking_at(Vector3(0.0, 0.0, 0.0))
 	transform = transform.orthonormalized()
@@ -44,9 +44,9 @@ func _turn(delta: float) -> void:
 			rotate_object_local(Vector3(1.0, 0.0, 0.0), -_angular_speed * delta)
 	transform = transform.orthonormalized()
 	if x_rotation != 0 || y_rotation != 0:
-		_angular_speed += _angular_accel * delta
-		if _angular_speed > _max_angular_speed:
-			_angular_speed = _max_angular_speed
+		_angular_speed += _ANGULAR_ACCEL * delta
+		if _angular_speed > _MAX_ANGULAR_SPEED:
+			_angular_speed = _MAX_ANGULAR_SPEED
 	else:
 		_angular_speed = 0.0
 		
@@ -76,4 +76,6 @@ func _move(delta: float) -> void:
 	move_direction = move_direction.normalized()
 	position += move_direction * _speed * delta
 	position = Global.wrap_around_pos(position)
-	_speed += _accel * delta
+	_speed += _ACCEL * delta
+	if _speed > _MAX_SPEED:
+		_speed = _MAX_SPEED
