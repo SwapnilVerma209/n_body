@@ -18,7 +18,7 @@ func _process(delta: float) -> void:
 func newton_field_and_potential_at(other_position: Vector3) -> Array:
 	var vector_to := other_position - position
 	var distance := vector_to.length()
-	var potential = - $Simulation.grav_const * mass / distance
+	var potential = - Global.grav_const * mass / distance
 	var field = potential / (distance**2) * vector_to
 	return [field, potential]
 

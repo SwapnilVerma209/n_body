@@ -1,119 +1,21 @@
 extends Node3D
 
-const MAX_AXIS_DIST := 1e11 / sqrt(3.0)
-		## The maximum distance along any given coordinate axis in the simulation
-
-# Fundamental constants in SI units
-const GRAV_CONST_SI := 6.67408e-11 ## Units: m^3 kg^-1 s^-2
-const LIGHT_SPEED_SI := 299792458.0 ## Units: m / s
-
-# Scales of various units
-const SPACE_SCALES := {
-	"proton_radius" : 8.77e-16,
-	"electron_radius" : 2.8179403205e-15,
-	"bohr_radius" : 5.29177210544e-11,
-	"nanometer" : 1e-9,
-	"micrometer" : 1e-6,
-	"millimeter" : 0.001,
-	"centimeter" : 0.01,
-	"meter" : 1.0,
-	"kilometer" : 1000.0,
-	"megameter" : 1e6,
-	"lunar_radius" : 1.7374e6,
-	"earth_radius" : 6.3710e6,
-	"jupiter_radius" : 6.9911e7,
-	"solar_radius" : 6.957e8,
-	"astronomical_unit" : 1.495978707e11,
-	"light_year" : 9460730472580800.0,
-	"parsec" : 3.085677581e16,
-	"milky_way_radius" : 43700.0 * 9460730472580800.0,
-	"observable_universe_radius" : 4.4e26
-} # Space units expressed in m
-const TIME_SCALES := {
-	"nanosecond" : 1e-9,
-	"microsecond" : 1e-6,
-	"millisecond" : 0.001,
-	"second" : 1.0,
-	"minute" : 60.0,
-	"hour" : 3600.0,
-	"day" : 24.0 * 3600.0,
-	"year" : 365.25 * 24.0 * 3600.0,
-	"decade" : 10.0 * 365.25 * 24.0 * 3600.0,
-	"century" : 100.0 * 365.25 * 24.0 * 3600.0,
-	"millenia" : 1000.0 * 365.25 * 24.0 * 3600.0,
-	"gigayear" : 1e9 * 365.25 * 24.0 * 3600.0
-} # Time units expressed in s
-const MASS_SCALES := {
-	"electron_mass" : 9.1093837139e-31,
-	"proton_mass" : 1.67262192595e-27,
-	"nanogram" : 1e-12,
-	"microgram" : 1e-9,
-	"gram" : 0.001,
-	"kilogram" : 1.0,
-	"tonne" : 1000.0,
-	"lunar_mass" : 7.346e22,
-	"earth_mass" : 5.9722e24,
-	"jupiter_mass" : 1.89813e27,
-	"solar_mass" : 1.988416e30,
-	"milky_way_mass" : 2.29e42,
-	"observable_universe_mass" : 3.5e54
-} # Mass units expressed in kg
-
-# Names of the chosen units
-var space_unit := "meter"
-var time_unit := "second"
-var mass_unit := "kilogram"
-
-# Fundamental constants scaled to chosen units
-var grav_const = GRAV_CONST_SI * (SPACE_SCALES[space_unit] ** -3.0) * \
-		MASS_SCALES[mass_unit] * (TIME_SCALES[time_unit] ** 2.0)
-var light_speed = LIGHT_SPEED_SI * \
-		(TIME_SCALES[time_unit] / SPACE_SCALES[space_unit])
-
-var sphere_scene = load("res://sphere.tscn")
+var body_scene = load("res://body.tscn")
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	for i in range(1000):
 		randomize()
-		var sphere = sphere_scene.instantiate()
+		var body = body_scene.instantiate()
 		var radius := randf_range(1.0, 1e9)
-		sphere.mesh.radius = radius
-		sphere.mesh.height = 2.0 * radius
-		sphere.position = Vector3( \
-				randf_range(-MAX_AXIS_DIST, MAX_AXIS_DIST), \
-				randf_range(-MAX_AXIS_DIST, MAX_AXIS_DIST), \
-				randf_range(-MAX_AXIS_DIST, MAX_AXIS_DIST))
-		$Spheres.add_child(sphere)
+		body.mesh.radius = radius
+		body.mesh.height = 2.0 * radius
+		body.position = Vector3( \
+				randf_range(-Global.MAX_AXIS_DIST, Global.MAX_AXIS_DIST), \
+				randf_range(-Global.MAX_AXIS_DIST, Global.MAX_AXIS_DIST), \
+				randf_range(-Global.MAX_AXIS_DIST, Global.MAX_AXIS_DIST))
+		$Bodies.add_child(body)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
 	pass
-
-# Lorentz transformation functions
-func lorentz_factor(velocity: Vector3) -> float:
-	var speed := velocity.length()
-	return 1.0 / sqrt(1.0 - (speed / light_speed)**2)
-
-func lorentz_fact_recip(velocity: Vector3) -> float:
-	var speed := velocity.length()
-	return sqrt(1.0 - (speed / light_speed)**2)
-
-func lorentz_transform_space(position: Vector3, velocity: Vector3, time: float) \
-		-> Vector3:
-	var pos_parallel := position.project(velocity)
-	var pos_orthogonal := position - pos_parallel
-	return lorentz_factor(velocity) * (pos_parallel - velocity * time) + \
-			pos_orthogonal
-
-func lorentz_transform_time(time: float, position: Vector3, velocity: Vector3) \
-		-> float:
-	var pos_parallel := position.project(velocity)
-	return lorentz_factor(velocity) * \
-			(time - (pos_parallel.dot(velocity) / light_speed**2))
-
-func relativistic_vel_add(vel1: Vector3, vel2_prime: Vector3) -> Vector3:
-	var vel2_prime_par := vel2_prime.project(vel1)
-	var vel2_prime_orth := vel2_prime - vel2_prime_par
-	return (vel2_prime_par + vel1 + lorentz_fact_recip(vel1) * vel2_prime_orth) \
-		/ (1.0 + (vel2_prime_par.dot(vel1) / light_speed**2))

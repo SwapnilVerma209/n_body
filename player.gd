@@ -12,7 +12,7 @@ var _angular_speed := 0.0
 ## facing towards the origin
 func _ready() -> void:
 	far = 2e11
-	_accel = get_parent().MAX_AXIS_DIST / (5.0**2 / 2.0)
+	_accel = Global.MAX_AXIS_DIST / (5.0**2 / 2.0)
 	position = 10.0 * Vector3(1.0, 1.0, 1.0)
 	transform = transform.looking_at(Vector3(0.0, 0.0, 0.0))
 	transform = transform.orthonormalized()
@@ -75,4 +75,5 @@ func _move(delta: float) -> void:
 	move_direction = curr_basis * move_direction
 	move_direction = move_direction.normalized()
 	position += move_direction * _speed * delta
+	position = Global.wrap_around_pos(position)
 	_speed += _accel * delta

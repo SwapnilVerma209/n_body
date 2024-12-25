@@ -9,4 +9,4 @@ script = ExtResource("1_sf3h8")
 [node name="Player" type="Camera3D" parent="."]
 script = ExtResource("2_a0k5w")
 
-[node name="Spheres" type="Node3D" parent="."]
+[node name="Bodies" type="Node3D" parent="."]
