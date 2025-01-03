@@ -70,6 +70,11 @@ var grav_const = GRAV_CONST_SI * (SPACE_SCALES[space_unit] ** -3.0) * \
 var light_speed = LIGHT_SPEED_SI * \
 		(TIME_SCALES[time_unit] / SPACE_SCALES[space_unit])
 
+# Bodies and escape velocities are capped at this speed to prevent
+# infinities. When escape velocities reach this, gravitational fields are set to
+# 0.
+var max_speed = (1.0 - 1e-5) * light_speed
+
 # Lorentz transformation functions
 func lorentz_factor(velocity: Vector3) -> float:
 	var speed := velocity.length()

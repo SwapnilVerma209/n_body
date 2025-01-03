@@ -49,7 +49,8 @@ func _turn(delta: float) -> void:
 			_angular_speed = _MAX_ANGULAR_SPEED
 	else:
 		_angular_speed = 0.0
-		
+
+## Moves the player given the input
 func _move(delta: float) -> void:
 	var move_direction = Vector3(0.0, 0.0, 0.0)
 	if Input.is_action_pressed("move_forward"):
