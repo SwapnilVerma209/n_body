@@ -3,6 +3,10 @@ extends Node
 const MAX_AXIS_DIST := 1e11 / sqrt(3.0)
 		## The maximum distance along any given coordinate axis in the simulation
 
+const MAX_SPACE_ERROR := 1e-4
+
+const MIN_DISPLAY_RADIUS := 0.1
+
 # Fundamental constants in SI units
 const GRAV_CONST_SI := 6.67408e-11 ## Units: m^3 kg^-1 s^-2
 const LIGHT_SPEED_SI := 299792458.0 ## Units: m / s
@@ -73,7 +77,7 @@ var light_speed = LIGHT_SPEED_SI * \
 # Bodies and escape velocities are capped at this speed to prevent
 # infinities. When escape velocities reach this, gravitational fields are set to
 # 0.
-var max_speed = (1.0 - 1e-5) * light_speed
+var max_speed = (1.0 - MAX_SPACE_ERROR) * light_speed
 
 # Lorentz transformation functions
 func lorentz_factor(velocity: Vector3) -> float:
@@ -86,6 +90,8 @@ func lorentz_fact_recip(velocity: Vector3) -> float:
 
 func lorentz_transform_space(position: Vector3, velocity: Vector3, time: float) \
 		-> Vector3:
+	if velocity.is_zero_approx():
+		return position
 	var pos_parallel := position.project(velocity)
 	var pos_orthogonal := position - pos_parallel
 	return lorentz_factor(velocity) * (pos_parallel - velocity * time) + \
@@ -93,15 +99,22 @@ func lorentz_transform_space(position: Vector3, velocity: Vector3, time: float) 
 
 func lorentz_transform_time(time: float, position: Vector3, velocity: Vector3) \
 		-> float:
+	if velocity.is_zero_approx():
+		return time
 	var pos_parallel := position.project(velocity)
 	return lorentz_factor(velocity) * \
 			(time - (pos_parallel.dot(velocity) / light_speed**2))
 
 func relativistic_vel_add(vel1: Vector3, vel2_prime: Vector3) -> Vector3:
+	if vel1.is_zero_approx():
+		return vel2_prime
 	var vel2_prime_par := vel2_prime.project(vel1)
 	var vel2_prime_orth := vel2_prime - vel2_prime_par
-	return (vel2_prime_par + vel1 + lorentz_fact_recip(vel1) * vel2_prime_orth) \
+	var vel = (vel2_prime_par + vel1 + lorentz_fact_recip(vel1) * vel2_prime_orth) \
 		/ (1.0 + (vel2_prime_par.dot(vel1) / light_speed**2))
+	if vel.length() > max_speed:
+		vel = vel.normalized() * max_speed
+	return vel
 
 func wrap_around_pos(position: Vector3) -> Vector3:
 	var new_position := position

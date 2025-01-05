@@ -1,7 +1,7 @@
 extends Camera3D
 
-const _ACCEL := Global.MAX_AXIS_DIST / (5.0**2 / 2.0)
-const _MAX_SPEED := _ACCEL * 5.0
+const _ACCEL := 1e6
+const _MAX_SPEED := Global.MAX_AXIS_DIST
 const _ANGULAR_ACCEL := PI / (1.0**2 / 2.0)
 const _MAX_ANGULAR_SPEED := 2.0 * PI
 
@@ -13,7 +13,7 @@ var _angular_speed := 0.0
 ## facing towards the origin
 func _ready() -> void:
 	far = 2e11
-	position = 10.0 * Vector3(1.0, 1.0, 1.0)
+	position = Global.MAX_AXIS_DIST * 0.25 * Vector3(0.0, 0.0, -1.0)
 	transform = transform.looking_at(Vector3(0.0, 0.0, 0.0))
 	transform = transform.orthonormalized()
 

@@ -1,4 +1,7 @@
+class_name Body
 extends MeshInstance3D
+
+const body_scene := preload("res://body.tscn")
 
 @export var mass: float
 @export var rest_radius: float
@@ -11,18 +14,54 @@ var _escape_velocity: Vector3
 var _esc_lorentz_recip: float
 var _infalling_vel: Vector3
 var _infall_lorentz_recip: float
-var infall_lorentz_sig_change: bool
+var needs_recalibration: bool
+var is_black_hole: bool
+var should_be_deleted: bool
 
 ## Creates a new body with a given mass, radius, position, and velocity based on
 ## the scaled units. Initial values assume no gravitational influences
-func _init(mass: float, radius: float, position: Vector3, coord_velocity: Vector3):
-	self.mass = mass
-	self.rest_radius = radius
-	mesh.radius = radius
-	mesh.height = 2.0 * radius
-	self.position = position
-	self.coord_velocity = coord_velocity
-	_reset()
+static func new_body(mass: float, radius: float, position: Vector3, \
+		coord_velocity: Vector3) -> Body:
+	var body := body_scene.instantiate()
+	body.mass = mass
+	body.rest_radius = radius
+	var schwarz_radius = body.get_schwarz_radius()
+	body.is_black_hole = radius <= schwarz_radius
+	if body.is_black_hole:
+		radius = schwarz_radius
+		body.rest_radius = radius
+	body.mesh = SphereMesh.new()
+	body.set_display_radius(radius)
+	body.position = position
+	body.coord_velocity = coord_velocity
+	if coord_velocity.length() > Global.max_speed:
+		body.coord_velocity = coord_velocity.normalized() * Global.max_speed
+	body.should_be_deleted = false
+	body.reset()
+	return body
+
+func get_schwarz_radius() -> float:
+	return 2.0 * Global.grav_const * mass / (Global.light_speed ** 2.0)
+
+func get_rest_orbit_speed(distance: float) -> float:
+	return sqrt(Global.grav_const * mass / \
+			(distance - get_schwarz_radius()))
+
+func set_display_radius(radius: float) -> void:
+	mesh.set_radius(radius)
+	mesh.set_height(2.0 * radius)
+	if radius < Global.MIN_DISPLAY_RADIUS:
+		mesh.set_radius(Global.MIN_DISPLAY_RADIUS)
+		mesh.set_height(2.0 * Global.MIN_DISPLAY_RADIUS)
+
+## Adds the contribution to the gravitational field and potential by the other 
+## body
+func add_grav_field_and_potential(other) -> void:
+	var field_and_potential = other.grav_field_and_potential_at(position)
+	var field = field_and_potential[0]
+	var potential = field_and_potential[1]
+	_grav_field += field
+	_grav_potential += potential
 
 ## Calculates and returns the gravitational field and potential caused by this
 ## body at other_postion. The values are expressed as those in the rest frame of
@@ -34,9 +73,10 @@ func grav_field_and_potential_at(other_position: Vector3) -> Array:
 	var field = (-Global.grav_const * mass / \
 			(distance**3.0 * _esc_lorentz_recip) * vector_to_other) * \
 			_infall_lorentz_recip
-	var field_parallel = field.project(coord_velocity)
-	var field_orthogonal = field - field_parallel
-	field = field_parallel + (field_orthogonal / _coord_lorentz_recip)
+	if !coord_velocity.is_zero_approx():
+		var field_parallel = field.project(coord_velocity)
+		var field_orthogonal = field - field_parallel
+		field = field_parallel + (field_orthogonal / _coord_lorentz_recip)
 	var potential = -field.length() * distance
 	return [field, potential]
 
@@ -46,9 +86,20 @@ func grav_field_and_potential_at(other_position: Vector3) -> Array:
 ## and potentials must be recalculated for all particles directly interacting
 ## with it
 func calibrate() -> void:
-	_calc_length_contraction()
 	_calc_esc_velocity()
 	_calc_infalling_vel()
+
+func reset_fields_and_potentials() -> void:
+	_grav_field = Vector3(0.0, 0.0, 0.0)
+	_grav_potential = 0.0
+	_escape_velocity = Vector3(0.0, 0.0, 0.0)
+
+func calc_timestep(other) -> float:
+	var naive_speed_sum = coord_velocity.length() + other.coord_velocity.length()
+	if is_zero_approx(naive_speed_sum):
+		return 1e-9
+	var distance = (other.position - position).length() * Global.MAX_SPACE_ERROR
+	return distance / naive_speed_sum
 
 ## Move the body to its new position, and calculate its new velocity
 func move(coord_timestep: float) -> void:
@@ -83,12 +134,25 @@ func absorb(other) -> void:
 	if new_coord_speed > Global.max_speed:
 		new_coord_speed = Global.max_speed
 	var new_coord_velocity = new_coord_speed * new_coord_momentum.normalized()
-	var new_rest_radius = (rest_radius**3.0 + other.rest_radius**3.0) ** \
-			(1.0 / 3.0)
+	var new_rest_radius: float
+	var schwarz_radius := get_schwarz_radius()
+	var other_schwarz_radius = other.get_schwarz_radius()
+	var sum_schwarz_radius = schwarz_radius + other_schwarz_radius
+	if is_black_hole || other.is_black_hole:
+		new_rest_radius = sum_schwarz_radius
+		is_black_hole = true
+	else:
+		new_rest_radius = (rest_radius**3.0 + other.rest_radius**3.0) ** \
+				(1.0 / 3.0)
 	mass = new_mass
 	position = new_position
 	coord_velocity = new_coord_velocity
 	rest_radius = new_rest_radius
+	if rest_radius < sum_schwarz_radius:
+		rest_radius = sum_schwarz_radius
+		is_black_hole = true
+	set_display_radius(rest_radius)
+	other.should_be_deleted = true
 
 func get_relativistic_mass() -> float:
 	return mass / _infall_lorentz_recip
@@ -103,7 +167,7 @@ func get_center_of_mass_with(other) -> Vector3:
 func get_coord_momentum() -> Vector3:
 	return mass * coord_velocity / _coord_lorentz_recip
 
-func _reset() -> void:
+func reset() -> void:
 	_calc_length_contraction()
 	_grav_field = Vector3(0.0, 0.0, 0.0)
 	_grav_potential = 0.0
@@ -111,25 +175,20 @@ func _reset() -> void:
 	_esc_lorentz_recip = 1.0
 	_infalling_vel = coord_velocity
 	_infall_lorentz_recip = _coord_lorentz_recip
-	infall_lorentz_sig_change = true
+	needs_recalibration = true
 
 ## Calculates the length contraction factors and saves the coordinate lorentz
 ## factor for gravitational field calculation
 func _calc_length_contraction():
 	_coord_lorentz_recip = Global.lorentz_fact_recip(coord_velocity)
-	_length_scales = coord_velocity.normalized() * _coord_lorentz_recip
+	_length_scales = Vector3(1.0, 1.0, 1.0)
+	var length_scales_par := _length_scales.project(coord_velocity)
+	var length_scales_orth := _length_scales - length_scales_par
+	_length_scales = length_scales_par * _coord_lorentz_recip + \
+			length_scales_orth
 	_length_scales.x = abs(_length_scales.x)
 	_length_scales.y = abs(_length_scales.y)
 	_length_scales.z = abs(_length_scales.z)
-
-## Adds the contribution to the gravitational field and potential by the other 
-## body
-func _add_grav_field_and_potential(other) -> void:
-	var field_and_potential = other.grav_field_and_potential_at(position)
-	var field = field_and_potential[0]
-	var potential = field_and_potential[1]
-	_grav_field += field
-	_grav_potential += potential
 
 ## Calculates the escape velocity. Set in opposite direction of net gravitational
 ## field by default. If there is no net gravitational field, it is set in either
@@ -157,7 +216,27 @@ func _calc_esc_velocity() -> void:
 func _calc_infalling_vel() -> void:
 	_infalling_vel = Global.relativistic_vel_add(_escape_velocity, \
 			coord_velocity)
+	if _infalling_vel.length() > Global.max_speed:
+		_infalling_vel = _infalling_vel.normalized() * Global.max_speed
 	var new_infall_lorentz_recip = Global.lorentz_fact_recip(_infalling_vel)
-	infall_lorentz_sig_change = \
+	needs_recalibration = \
 			abs(1.0 - new_infall_lorentz_recip / _infall_lorentz_recip) >= 1e-9
 	_infall_lorentz_recip = new_infall_lorentz_recip
+
+func _to_string() -> String:
+	return ("Mass = %f\n" % mass) + \
+			("Radius = %f\n" % rest_radius) + \
+			("Position = <%f, %f, %f> (%f)\n" % [position.x, \
+					position.y, position.z, position.length()]) + \
+			("Coordinate Velocity = <%f, %f, %f> (%f)\n" % [coord_velocity.x, \
+					coord_velocity.y, coord_velocity.z, coord_velocity.length()]) + \
+			("Coordinate Lorentz Reciprocal = %f\n" % _coord_lorentz_recip) + \
+			("Gravitational Field = <%f, %f, %f> (%f)\n" % [_grav_field.x, \
+					_grav_field.y, _grav_field.z, _grav_field.length()]) + \
+			("Gravitational Potential = %f\n" % _grav_potential) + \
+			("Escape Velocity = <%f, %f, %f> (%f)\n" % [_escape_velocity.x, \
+					_escape_velocity.y, _escape_velocity.z, _escape_velocity.length()]) + \
+			("Escape Lorentz Reciprocal = %f\n" % _esc_lorentz_recip) + \
+			("Infalling Velocity = <%f, %f, %f> (%f)\n" % [_infalling_vel.x, \
+					_infalling_vel.y, _infalling_vel.z, _infalling_vel.length()]) + \
+			("Infalling Lorentz Reciprocal = %f\n" % _infall_lorentz_recip)
