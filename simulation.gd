@@ -6,16 +6,21 @@ var all_calibrated := false
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
+	var black_hole := _add_body( \
+			8.0, "solar_mass", \
+			0.0, "kilometer", \
+			Vector3(0.0, 0.0, 0.0), "kilometer",
+			Vector3(0.0, 0.0, 0.0), "kilometer", "second")
+	var schwarz_radius := black_hole.get_schwarz_radius()
+	var test_distance := 10.0 * schwarz_radius
+	var test_position := test_distance * Vector3(0.0, 1.0, 0.0)
+	var orbit_speed := black_hole.get_rest_orbit_speed(test_distance)
+	var test_velocity := 1.26 * orbit_speed * Vector3(1.0, 0.0, 0.0)
 	_add_body( \
 			1.0, "kilogram", \
-			1.0, "meter", \
-			Vector3(5.0, 0.0, 0.0), "meter",
-			Vector3(-0.95, 0.0, 0.0), "light_year", "year")
-	_add_body( \
-			1.0, "kilogram", \
-			1.0, "meter", \
-			Vector3(0.0, 5.0, 0.0), "meter",
-			Vector3(0.0, -0.95, 0.0), "light_year", "year")
+			5.0, "kilometer", \
+			test_position, Global.space_unit,
+			test_velocity, Global.space_unit, Global.time_unit)
 	var max_dist := _calc_max_dist()
 	if is_zero_approx(max_dist):
 		max_dist = bodies[0].rest_radius * 5.0
@@ -87,8 +92,8 @@ func _calc_fields_and_potentials() -> void:
 		for j in range(i+1, bodies.size()):
 			if bodies[j] == null:
 				continue
-			bodies[i].add_grav_field_and_potential(bodies[j])
-			bodies[j].add_grav_field_and_potential(bodies[i])
+			bodies[i].add_newton_grav_field_and_potential(bodies[j])
+			bodies[j].add_newton_grav_field_and_potential(bodies[i])
 
 ## Performs one round of calibration for every body in the simulation
 func _calibrate_bodies() -> void:

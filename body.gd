@@ -6,10 +6,11 @@ const body_scene := preload("res://body.tscn")
 @export var mass: float
 @export var rest_radius: float
 @export var coord_velocity: Vector3
+var proper_time: float
 var _coord_lorentz_recip: float
 var _length_scales: Basis
-var _grav_field: Vector3
-var _grav_potential: float
+var _newton_grav_field: Vector3
+var _newton_grav_potential: float
 var _escape_velocity: Vector3
 var _esc_lorentz_recip: float
 var _infalling_vel: Vector3
@@ -36,6 +37,7 @@ static func new_body(mass: float, radius: float, position: Vector3, \
 	body.coord_velocity = coord_velocity
 	if coord_velocity.length() > Global.max_speed:
 		body.coord_velocity = coord_velocity.normalized() * Global.max_speed
+	body.proper_time = 0.0
 	body.should_be_deleted = false
 	body.reset()
 	return body
@@ -63,18 +65,18 @@ func set_display_radius(radius: float) -> void:
 
 ## Adds the contribution to the gravitational field and potential by the other 
 ## body
-func add_grav_field_and_potential(other) -> void:
-	var field_and_potential = other.grav_field_and_potential_at(position)
+func add_newton_grav_field_and_potential(other) -> void:
+	var field_and_potential = other.newton_grav_field_and_potential_at(position)
 	var field = field_and_potential[0]
 	var potential = field_and_potential[1]
-	_grav_field += field
-	_grav_potential += potential
+	_newton_grav_field += field
+	_newton_grav_potential += potential
 
 ## Calculates and returns the gravitational field and potential caused by this
 ## body at other_postion. The values are expressed as those in the rest frame of
 ## an observer at other_position and at rest relative to the coordinate origin,
 ## based on the scaled units
-func grav_field_and_potential_at(other_position: Vector3) -> Array:
+func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	var vector_to_other := other_position - position
 	var distance := vector_to_other.length()
 	var field = (-Global.grav_const * mass / \
@@ -99,8 +101,8 @@ func calibrate() -> void:
 ## Resets the fields and potentials calculated for this body. This should be
 ## called when the body needs to recalibrate
 func reset_fields_and_potentials() -> void:
-	_grav_field = Vector3(0.0, 0.0, 0.0)
-	_grav_potential = 0.0
+	_newton_grav_field = Vector3(0.0, 0.0, 0.0)
+	_newton_grav_potential = 0.0
 	_escape_velocity = Vector3(0.0, 0.0, 0.0)
 
 ## Calculates a timestep for this and another body. In the simulation, this is
@@ -119,8 +121,10 @@ func calc_timestep(other) -> float:
 func move(coord_timestep: float) -> void:
 	var local_timestep := coord_timestep * _esc_lorentz_recip
 	position += coord_velocity * local_timestep
-	coord_velocity = Global.relativistic_vel_add(_grav_field * local_timestep, \
+	coord_velocity = Global.relativistic_vel_add( \
+			_newton_grav_field / (_esc_lorentz_recip**2.0) * coord_timestep, \
 			coord_velocity)
+	proper_time += local_timestep
 
 ## Calculates the radius in the direction of the given position
 func get_radius_towards(other_position: Vector3) -> float:
@@ -190,8 +194,8 @@ func get_coord_momentum() -> Vector3:
 ## potentials, related values, and flags
 func reset() -> void:
 	_calc_length_contraction()
-	_grav_field = Vector3(0.0, 0.0, 0.0)
-	_grav_potential = 0.0
+	_newton_grav_field = Vector3(0.0, 0.0, 0.0)
+	_newton_grav_potential = 0.0
 	_escape_velocity = Vector3(0.0, 0.0, 0.0)
 	_esc_lorentz_recip = 1.0
 	_infalling_vel = coord_velocity
@@ -220,17 +224,17 @@ func _calc_length_contraction() -> void:
 ## set to zero. This is to prevent infinities at the event horizons of black
 ## holes.
 func _calc_esc_velocity() -> void:
-	var escape_speed := sqrt(-2.0 * _grav_potential)
-	if _grav_field.is_zero_approx():
+	var escape_speed := sqrt(-2.0 * _newton_grav_potential)
+	if _newton_grav_field.is_zero_approx():
 		if coord_velocity.is_zero_approx():
 			_escape_velocity = escape_speed * Vector3(-1.0, 0.0, 0.0)
 		else:
 			_escape_velocity = escape_speed * coord_velocity.normalized()
 	else:
-		_escape_velocity = escape_speed * -_grav_field.normalized()
+		_escape_velocity = escape_speed * -_newton_grav_field.normalized()
 	if escape_speed >= Global.max_speed:
 		_escape_velocity = Global.max_speed * _escape_velocity.normalized()
-		_grav_field = Vector3(0.0, 0.0, 0.0)
+		_newton_grav_field = Vector3(0.0, 0.0, 0.0)
 	_esc_lorentz_recip = Global.lorentz_fact_recip(_escape_velocity)
 
 ## Calculates the velocity of the body in the frame of reference of an observer
@@ -254,9 +258,10 @@ func _to_string() -> String:
 			("Coordinate Velocity = <%f, %f, %f> (%f)\n" % [coord_velocity.x, \
 					coord_velocity.y, coord_velocity.z, coord_velocity.length()]) + \
 			("Coordinate Lorentz Reciprocal = %f\n" % _coord_lorentz_recip) + \
-			("Gravitational Field = <%f, %f, %f> (%f)\n" % [_grav_field.x, \
-					_grav_field.y, _grav_field.z, _grav_field.length()]) + \
-			("Gravitational Potential = %f\n" % _grav_potential) + \
+			("Newtonian Gravitational Field = <%f, %f, %f> (%f)\n" % \
+					[_newton_grav_field.x, _newton_grav_field.y, \
+					_newton_grav_field.z, _newton_grav_field.length()]) + \
+			("Newtonian Gravitational Potential = %f\n" % _newton_grav_potential) + \
 			("Escape Velocity = <%f, %f, %f> (%f)\n" % [_escape_velocity.x, \
 					_escape_velocity.y, _escape_velocity.z, _escape_velocity.length()]) + \
 			("Escape Lorentz Reciprocal = %f\n" % _esc_lorentz_recip) + \
