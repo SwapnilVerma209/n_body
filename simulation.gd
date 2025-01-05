@@ -1,5 +1,6 @@
 extends Node3D
 
+var max_frame_time_us: float
 var bodies := []
 var all_calibrated := false
 
@@ -22,26 +23,31 @@ func _ready() -> void:
 	if $Player.position.length() > 1e11:
 		$Player.position = 1e11 * Vector3(1.0, 0.0, 0.0).normalized()
 	$Player._accel = 2.0 * max_dist
-	#print("Beginning")
-	#_print_bodies()
-
+	if Engine.max_fps != 0:
+		max_frame_time_us = 1e6 / Engine.max_fps
+	else:
+		max_frame_time_us = 1e6 / 120.0
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
-	
-	if !all_calibrated:
-		#print("Calibrating")
-		all_calibrated = true
-		_calc_fields_and_potentials()
-		_calibrate_bodies()
-		#_print_bodies()
-	else:
-		#print("Moving")
-		var timestep := _calc_timestep()
-		_move_bodies(timestep)
-		_collide_bodies()
-		_reset_bodies()
-		all_calibrated = false
-		#_print_bodies()
+	var start_time := Time.get_ticks_usec()
+	var elapsed_time := 0
+	while elapsed_time < 0.75 * max_frame_time_us:
+		if !all_calibrated:
+			#print("Calibrating")
+			all_calibrated = true
+			_calc_fields_and_potentials()
+			_calibrate_bodies()
+			#_print_bodies()
+		else:
+			#print("Moving")
+			var timestep := _calc_timestep()
+			_move_bodies(timestep)
+			_collide_bodies()
+			_reset_bodies()
+			all_calibrated = false
+			#_print_bodies()
+		elapsed_time = Time.get_ticks_usec() - start_time
+		#print(elapsed_time)
 
 ## Creates a new body instance with the given parameters, scaled with the given 
 ## units. Adds the body into the simulation, and returns a reference to it
