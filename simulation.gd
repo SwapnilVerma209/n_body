@@ -5,23 +5,19 @@ var all_calibrated := false
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	_add_body(1.0, \
-			"kilogram", \
-			1.0, \
-			"meter", \
-			Vector3(1.0, 0.0, 0.0), \
-			"meter", \
-			Vector3(-1.0, 0.0, 0.0), \
-			"meter", "second")
-	_add_body(2.0, \
-			"kilogram", \
-			1.0, \
-			"meter", \
-			Vector3(0.0, 5.0, 0.0), \
-			"meter", \
-			Vector3(0.0, -0.9, 0.0), \
-			"light_year", "year")
+	_add_body( \
+			1.0, "kilogram", \
+			1.0, "meter", \
+			Vector3(5.0, 0.0, 0.0), "meter",
+			Vector3(-0.95, 0.0, 0.0), "light_year", "year")
+	_add_body( \
+			1.0, "kilogram", \
+			1.0, "meter", \
+			Vector3(0.0, 5.0, 0.0), "meter",
+			Vector3(0.0, -0.95, 0.0), "light_year", "year")
 	var max_dist := _calc_max_dist()
+	if is_zero_approx(max_dist):
+		max_dist = bodies[0].rest_radius * 5.0
 	$Player.position = 1.1 * max_dist * Vector3(0.0, 0.0, -1.0)
 	if $Player.position.length() > 1e11:
 		$Player.position = 1e11 * Vector3(1.0, 0.0, 0.0).normalized()
@@ -31,6 +27,7 @@ func _ready() -> void:
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
+	
 	if !all_calibrated:
 		#print("Calibrating")
 		all_calibrated = true

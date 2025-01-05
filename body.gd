@@ -7,7 +7,7 @@ const body_scene := preload("res://body.tscn")
 @export var rest_radius: float
 @export var coord_velocity: Vector3
 var _coord_lorentz_recip: float
-var _length_scales: Vector3
+var _length_scales: Basis
 var _grav_field: Vector3
 var _grav_potential: float
 var _escape_velocity: Vector3
@@ -126,9 +126,7 @@ func move(coord_timestep: float) -> void:
 func get_radius_towards(other_position: Vector3) -> float:
 	var vector_to_other := other_position - position
 	var radius_vector := rest_radius * vector_to_other.normalized()
-	radius_vector.x *= _length_scales.x
-	radius_vector.y *= _length_scales.y
-	radius_vector.z *= _length_scales.z
+	radius_vector = _length_scales * radius_vector
 	return radius_vector.length()
 
 ## Returns true if this body is colliding with the other body, false otherwise
@@ -202,16 +200,17 @@ func reset() -> void:
 
 ## Calculates the length contraction factors and saves the coordinate lorentz
 ## factor for gravitational field calculation
-func _calc_length_contraction():
+func _calc_length_contraction() -> void:
 	_coord_lorentz_recip = Global.lorentz_fact_recip(coord_velocity)
-	_length_scales = Vector3(1.0, 1.0, 1.0)
-	var length_scales_par := _length_scales.project(coord_velocity)
-	var length_scales_orth := _length_scales - length_scales_par
-	_length_scales = length_scales_par * _coord_lorentz_recip + \
-			length_scales_orth
-	_length_scales.x = abs(_length_scales.x)
-	_length_scales.y = abs(_length_scales.y)
-	_length_scales.z = abs(_length_scales.z)
+	_length_scales = Basis()
+	if coord_velocity.is_zero_approx():
+		return
+	for i in 3:
+		var basis_vector := _length_scales[i]
+		var basis_vect_par := basis_vector.project(coord_velocity)
+		var basis_vect_orth := basis_vector - basis_vect_par
+		_length_scales[i] = _coord_lorentz_recip * basis_vect_par + \
+				basis_vect_orth
 
 ## Calculates the escape velocity. Set in opposite direction of net gravitational
 ## field by default. If there is no net gravitational field, it is set in either
