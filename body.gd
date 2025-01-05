@@ -40,13 +40,20 @@ static func new_body(mass: float, radius: float, position: Vector3, \
 	body.reset()
 	return body
 
+## Returns the Schwarzschild radius of this body; the radius of a Schwarzschild
+## black hole of this mass
 func get_schwarz_radius() -> float:
 	return 2.0 * Global.grav_const * mass / (Global.light_speed ** 2.0)
 
+## Returns the speed required for a circular orbit in the rest frame of this
+## body
 func get_rest_orbit_speed(distance: float) -> float:
 	return sqrt(Global.grav_const * mass / \
 			(distance - get_schwarz_radius()))
 
+## Sets the radius and height of the mesh to reflect the size of the radius. If
+## is below a minimum display size, then it is set to that minimum size. The
+## hitbox is unaffected by this.
 func set_display_radius(radius: float) -> void:
 	mesh.set_radius(radius)
 	mesh.set_height(2.0 * radius)
@@ -89,11 +96,18 @@ func calibrate() -> void:
 	_calc_esc_velocity()
 	_calc_infalling_vel()
 
+## Resets the fields and potentials calculated for this body. This should be
+## called when the body needs to recalibrate
 func reset_fields_and_potentials() -> void:
 	_grav_field = Vector3(0.0, 0.0, 0.0)
 	_grav_potential = 0.0
 	_escape_velocity = Vector3(0.0, 0.0, 0.0)
 
+## Calculates a timestep for this and another body. In the simulation, this is
+## done with pairs of bodies, and the pair with the lowest timestep sets the
+## next timestep. This is done based on the speeds of the bodies in the
+## simulation frame. If the sum is zero, then a default value is returned
+## instead
 func calc_timestep(other) -> float:
 	var naive_speed_sum = coord_velocity.length() + other.coord_velocity.length()
 	if is_zero_approx(naive_speed_sum):
@@ -124,6 +138,9 @@ func is_colliding_with(other) -> bool:
 	return distance <= get_radius_towards(other.position) + \
 			other.get_radius_towards(position)
 
+## Adds the volume, mass, and momentum of another body, moves it to their center
+## of mass, and marks the other body for deletion. Also turns the body into a
+## black hole if the conditions are met. To be used during collisions
 func absorb(other) -> void:
 	var new_mass = mass + other.mass
 	var new_position := get_center_of_mass_with(other)
@@ -154,9 +171,12 @@ func absorb(other) -> void:
 	set_display_radius(rest_radius)
 	other.should_be_deleted = true
 
+## Returns the relativistic mass of the body based on the infalling frame
 func get_relativistic_mass() -> float:
 	return mass / _infall_lorentz_recip
 
+## Calculates the center of mass between this body and another one, based on
+## their relativistic masses
 func get_center_of_mass_with(other) -> Vector3:
 	var self_rel_mass := get_relativistic_mass()
 	var other_rel_mass = other.get_relativistic_mass()
@@ -164,9 +184,12 @@ func get_center_of_mass_with(other) -> Vector3:
 	return (self_rel_mass * position + other_rel_mass * other.position) / \
 			total_rel_mass
 
+## Calculates the relativistic momentum in the coordinate frame
 func get_coord_momentum() -> Vector3:
 	return mass * coord_velocity / _coord_lorentz_recip
 
+## Recalculates length contraction for the new velocity, and resets fields,
+## potentials, related values, and flags
 func reset() -> void:
 	_calc_length_contraction()
 	_grav_field = Vector3(0.0, 0.0, 0.0)
@@ -223,6 +246,7 @@ func _calc_infalling_vel() -> void:
 			abs(1.0 - new_infall_lorentz_recip / _infall_lorentz_recip) >= 1e-9
 	_infall_lorentz_recip = new_infall_lorentz_recip
 
+## Returns information of the body in the form of a string
 func _to_string() -> String:
 	return ("Mass = %f\n" % mass) + \
 			("Radius = %f\n" % rest_radius) + \

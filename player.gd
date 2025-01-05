@@ -1,11 +1,11 @@
 extends Camera3D
 
-const _ACCEL := 1e6
 const _MAX_SPEED := Global.MAX_AXIS_DIST
 const _ANGULAR_ACCEL := PI / (1.0**2 / 2.0)
 const _MAX_ANGULAR_SPEED := 2.0 * PI
 
 var _speed := 0.0
+var _accel := 1e3
 var _angular_speed := 0.0
 
 # Called when the node enters the scene tree for the first time.
@@ -77,6 +77,6 @@ func _move(delta: float) -> void:
 	move_direction = move_direction.normalized()
 	position += move_direction * _speed * delta
 	position = Global.wrap_around_pos(position)
-	_speed += _ACCEL * delta
+	_speed += _accel * delta
 	if _speed > _MAX_SPEED:
 		_speed = _MAX_SPEED
