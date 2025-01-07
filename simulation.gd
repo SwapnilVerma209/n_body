@@ -1,58 +1,59 @@
 extends Node3D
 
+const _MAX_CALIBRATION_ROUNDS := 10
+
 var max_frame_time_us: float
 var bodies := []
 var all_calibrated := false
+var calibration_count := 0
+var timestep: float
+var coord_time := 0.0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	var black_hole := _add_body( \
-			8.0, "solar_mass", \
+	Global.space_unit = "kilometer"
+	Global.time_unit = "millisecond"
+	Global.mass_unit = "solar_mass"
+	Global.set_fund_consts()
+	_add_body(8.0, "solar_mass", \
 			0.0, "kilometer", \
-			Vector3(0.0, 0.0, 0.0), "kilometer",
-			Vector3(0.0, 0.0, 0.0), "kilometer", "second")
-	var schwarz_radius := black_hole.get_schwarz_radius()
-	var test_distance := 10.0 * schwarz_radius
-	var test_position := test_distance * Vector3(0.0, 1.0, 0.0)
-	var orbit_speed := black_hole.get_rest_orbit_speed(test_distance)
-	var test_velocity := 1.26 * orbit_speed * Vector3(1.0, 0.0, 0.0)
-	_add_body( \
-			1.0, "kilogram", \
-			5.0, "kilometer", \
-			test_position, Global.space_unit,
-			test_velocity, Global.space_unit, Global.time_unit)
+			Vector3(-1e3, 0.0, 0.0), "kilometer", \
+			Vector3(0.0, 0.0, 0.0), "kilometer", "millisecond")
+	_add_body(15.0, "solar_mass", \
+			0.0, "kilometer", \
+			Vector3(1e3, 0.0, 0.0), "kilometer", \
+			Vector3(0.0, 0.0, 0.0), "kilometer", "millisecond")
+	
 	var max_dist := _calc_max_dist()
 	if is_zero_approx(max_dist):
 		max_dist = bodies[0].rest_radius * 5.0
-	$Player.position = 1.1 * max_dist * Vector3(0.0, 0.0, -1.0)
-	if $Player.position.length() > 1e11:
-		$Player.position = 1e11 * Vector3(1.0, 0.0, 0.0).normalized()
-	$Player._accel = 2.0 * max_dist
+	$Player.position = $Player.position.normalized() * max_dist
 	if Engine.max_fps != 0:
 		max_frame_time_us = 1e6 / Engine.max_fps
 	else:
 		max_frame_time_us = 1e6 / 120.0
+
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	var start_time := Time.get_ticks_usec()
 	var elapsed_time := 0
 	while elapsed_time < 0.75 * max_frame_time_us:
 		if !all_calibrated:
-			#print("Calibrating")
 			all_calibrated = true
-			_calc_fields_and_potentials()
-			_calibrate_bodies()
-			#_print_bodies()
+			if calibration_count <= _MAX_CALIBRATION_ROUNDS:
+				_reset_fields_and_potentials()
+				_calc_fields_and_potentials()
+				_calibrate_bodies()
+				calibration_count += 1
 		else:
-			#print("Moving")
-			var timestep := _calc_timestep()
+			calibration_count = 0
+			timestep = _calc_timestep()
 			_move_bodies(timestep)
 			_collide_bodies()
 			_reset_bodies()
 			all_calibrated = false
-			#_print_bodies()
+			coord_time += timestep
 		elapsed_time = Time.get_ticks_usec() - start_time
-		#print(elapsed_time)
 
 ## Creates a new body instance with the given parameters, scaled with the given 
 ## units. Adds the body into the simulation, and returns a reference to it
@@ -103,11 +104,12 @@ func _calibrate_bodies() -> void:
 		body.calibrate()
 		if body.needs_recalibration:
 			all_calibrated = false
-	if !all_calibrated:
-		for body in bodies:
-			if body == null:
-				continue
-			body.reset_fields_and_potentials()
+
+func _reset_fields_and_potentials() -> void:
+	for body in bodies:
+		if body == null:
+			continue
+		body.reset_fields_and_potentials()
 
 ## Calculates timesteps between each pair, and returns the smallest one. If
 ## there is only one body, a default value is used.
@@ -123,7 +125,7 @@ func _calc_timestep() -> float:
 			if new_timestep < timestep:
 				timestep = new_timestep
 	if timestep == INF:
-		return 1e-9
+		return Global.DEFAULT_TIMESTEP
 	return timestep
 
 ## Moves each body according to the timestep

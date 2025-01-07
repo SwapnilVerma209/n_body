@@ -2,9 +2,8 @@ extends Node
 
 const MAX_AXIS_DIST := 1e11 / sqrt(3.0)
 		## The maximum distance along any given coordinate axis in the simulation
-
 const MAX_SPACE_ERROR := 1e-4
-
+const DEFAULT_TIMESTEP := 1e-5
 const MIN_DISPLAY_RADIUS := 0.1
 
 # Fundamental constants in SI units
@@ -79,12 +78,23 @@ var light_speed = LIGHT_SPEED_SI * \
 # 0.
 var max_speed = (1.0 - MAX_SPACE_ERROR) * light_speed
 
+func set_fund_consts() -> void:
+	grav_const = GRAV_CONST_SI * (SPACE_SCALES[space_unit] ** -3.0) * \
+		MASS_SCALES[mass_unit] * (TIME_SCALES[time_unit] ** 2.0)
+	light_speed = LIGHT_SPEED_SI * \
+		(TIME_SCALES[time_unit] / SPACE_SCALES[space_unit])
+	max_speed = (1.0 - MAX_SPACE_ERROR) * light_speed
+
 # Lorentz transformation functions
 func lorentz_factor(velocity: Vector3) -> float:
+	if velocity.length() > max_speed:
+		velocity = max_speed * velocity.normalized()
 	var speed := velocity.length()
 	return 1.0 / sqrt(1.0 - (speed / light_speed)**2)
 
 func lorentz_fact_recip(velocity: Vector3) -> float:
+	if velocity.length() > max_speed:
+		velocity = max_speed * velocity.normalized()
 	var speed := velocity.length()
 	return sqrt(1.0 - (speed / light_speed)**2)
 
@@ -92,6 +102,8 @@ func lorentz_transform_space(position: Vector3, velocity: Vector3, time: float) 
 		-> Vector3:
 	if velocity.is_zero_approx():
 		return position
+	if velocity.length() > max_speed:
+		velocity = max_speed * velocity.normalized()
 	var pos_parallel := position.project(velocity)
 	var pos_orthogonal := position - pos_parallel
 	return lorentz_factor(velocity) * (pos_parallel - velocity * time) + \
@@ -101,6 +113,8 @@ func lorentz_transform_time(time: float, position: Vector3, velocity: Vector3) \
 		-> float:
 	if velocity.is_zero_approx():
 		return time
+	if velocity.length() > max_speed:
+		velocity = max_speed * velocity.normalized()
 	var pos_parallel := position.project(velocity)
 	return lorentz_factor(velocity) * \
 			(time - (pos_parallel.dot(velocity) / light_speed**2))
@@ -108,6 +122,10 @@ func lorentz_transform_time(time: float, position: Vector3, velocity: Vector3) \
 func relativistic_vel_add(vel1: Vector3, vel2_prime: Vector3) -> Vector3:
 	if vel1.is_zero_approx():
 		return vel2_prime
+	if vel1.length() > max_speed:
+		vel1 = max_speed * vel1.normalized()
+	if vel2_prime.length() > max_speed:
+		vel2_prime = max_speed * vel2_prime.normalized()
 	var vel2_prime_par := vel2_prime.project(vel1)
 	var vel2_prime_orth := vel2_prime - vel2_prime_par
 	var vel = (vel2_prime_par + vel1 + lorentz_fact_recip(vel1) * vel2_prime_orth) \

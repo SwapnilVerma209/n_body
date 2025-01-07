@@ -8,7 +8,6 @@ const body_scene := preload("res://body.tscn")
 @export var coord_velocity: Vector3
 var proper_time: float
 var _coord_lorentz_recip: float
-var _length_scales: Basis
 var _newton_grav_field: Vector3
 var _newton_grav_potential: float
 var _escape_velocity: Vector3
@@ -57,11 +56,12 @@ func get_rest_orbit_speed(distance: float) -> float:
 ## is below a minimum display size, then it is set to that minimum size. The
 ## hitbox is unaffected by this.
 func set_display_radius(radius: float) -> void:
-	mesh.set_radius(radius)
-	mesh.set_height(2.0 * radius)
 	if radius < Global.MIN_DISPLAY_RADIUS:
 		mesh.set_radius(Global.MIN_DISPLAY_RADIUS)
 		mesh.set_height(2.0 * Global.MIN_DISPLAY_RADIUS)
+		return
+	mesh.set_radius(radius)
+	mesh.set_height(2.0 * radius)
 
 ## Adds the contribution to the gravitational field and potential by the other 
 ## body
@@ -112,25 +112,58 @@ func reset_fields_and_potentials() -> void:
 ## instead
 func calc_timestep(other) -> float:
 	var naive_speed_sum = coord_velocity.length() + other.coord_velocity.length()
-	if is_zero_approx(naive_speed_sum):
-		return 1e-9
+	var naive_grav_mag_sum = _newton_grav_field.length() + \
+			other._newton_grav_field.length()
 	var distance = (other.position - position).length() * Global.MAX_SPACE_ERROR
-	return distance / naive_speed_sum
+	if distance < Global.MAX_SPACE_ERROR:
+		distance = Global.MAX_SPACE_ERROR
+	var timestep: float
+	if is_zero_approx(naive_grav_mag_sum):
+		if is_zero_approx(naive_speed_sum):
+			return Global.DEFAULT_TIMESTEP
+		else:
+			timestep = distance / naive_speed_sum
+	else:
+		timestep = (-naive_speed_sum + sqrt(naive_speed_sum ** 2.0 + \
+				2.0 * naive_grav_mag_sum * distance)) / naive_grav_mag_sum
+	if is_zero_approx(timestep):
+		return Global.DEFAULT_TIMESTEP
+	return timestep
 
 ## Move the body to its new position, and calculate its new velocity
 func move(coord_timestep: float) -> void:
 	var local_timestep := coord_timestep * _esc_lorentz_recip
+	#print("Local timestep = %f" % local_timestep)
+	#print("Old velocity:")
+	#print(coord_velocity)
 	position += coord_velocity * local_timestep
 	coord_velocity = Global.relativistic_vel_add( \
 			_newton_grav_field / (_esc_lorentz_recip**2.0) * coord_timestep, \
 			coord_velocity)
+	#print("Gravitational field:")
+	#print(_newton_grav_field / (_esc_lorentz_recip**2.0))
+	#print("New velocity:")
+	#print(coord_velocity)
+	#print()
 	proper_time += local_timestep
 
 ## Calculates the radius in the direction of the given position
 func get_radius_towards(other_position: Vector3) -> float:
-	var vector_to_other := other_position - position
-	var radius_vector := rest_radius * vector_to_other.normalized()
-	radius_vector = _length_scales * radius_vector
+	if coord_velocity.is_zero_approx():
+		return rest_radius
+	var direction := (other_position - position).normalized()
+	var direction_par := direction.project(coord_velocity)
+	if direction_par.is_zero_approx():
+		return rest_radius
+	var direction_orth := direction - direction_par
+	if direction_orth.is_zero_approx():
+		return rest_radius * _coord_lorentz_recip
+	var rest_rad_vector := direction_par / _coord_lorentz_recip + direction_orth
+	rest_rad_vector = rest_rad_vector.normalized()
+	rest_rad_vector *= rest_radius
+	var rest_rad_par := rest_rad_vector.project(coord_velocity)
+	var radius_vector := rest_rad_vector - rest_rad_par + rest_rad_par * \
+			_coord_lorentz_recip
 	return radius_vector.length()
 
 ## Returns true if this body is colliding with the other body, false otherwise
@@ -206,15 +239,6 @@ func reset() -> void:
 ## factor for gravitational field calculation
 func _calc_length_contraction() -> void:
 	_coord_lorentz_recip = Global.lorentz_fact_recip(coord_velocity)
-	_length_scales = Basis()
-	if coord_velocity.is_zero_approx():
-		return
-	for i in 3:
-		var basis_vector := _length_scales[i]
-		var basis_vect_par := basis_vector.project(coord_velocity)
-		var basis_vect_orth := basis_vector - basis_vect_par
-		_length_scales[i] = _coord_lorentz_recip * basis_vect_par + \
-				basis_vect_orth
 
 ## Calculates the escape velocity. Set in opposite direction of net gravitational
 ## field by default. If there is no net gravitational field, it is set in either
@@ -242,8 +266,6 @@ func _calc_esc_velocity() -> void:
 func _calc_infalling_vel() -> void:
 	_infalling_vel = Global.relativistic_vel_add(_escape_velocity, \
 			coord_velocity)
-	if _infalling_vel.length() > Global.max_speed:
-		_infalling_vel = _infalling_vel.normalized() * Global.max_speed
 	var new_infall_lorentz_recip = Global.lorentz_fact_recip(_infalling_vel)
 	needs_recalibration = \
 			abs(1.0 - new_infall_lorentz_recip / _infall_lorentz_recip) >= 1e-9
