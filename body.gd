@@ -1,13 +1,17 @@
 class_name Body
 extends MeshInstance3D
 
-const body_scene := preload("res://body.tscn")
+static var body_scene := preload("res://body.tscn")
+static var body_shader := preload("res://body.gdshader")
 
+@export var label: String
+@export var color: Vector3
 @export var mass: float
 @export var rest_radius: float
 @export var coord_velocity: Vector3
 var proper_time: float
 var _coord_lorentz_recip: float
+var _length_contract_matrix: Basis
 var _newton_grav_field: Vector3
 var _newton_grav_potential: float
 var _escape_velocity: Vector3
@@ -20,9 +24,11 @@ var should_be_deleted: bool
 
 ## Creates a new body with a given mass, radius, position, and velocity based on
 ## the scaled units. Initial values assume no gravitational influences
-static func new_body(mass: float, radius: float, position: Vector3, \
-		coord_velocity: Vector3) -> Body:
+static func new_body(label: String, color: Vector3, mass: float, \
+		radius: float, position: Vector3, coord_velocity: Vector3) -> Body:
 	var body := body_scene.instantiate()
+	body.label = label
+	body.color = color
 	body.mass = mass
 	body.rest_radius = radius
 	var schwarz_radius = body.get_schwarz_radius()
@@ -30,8 +36,14 @@ static func new_body(mass: float, radius: float, position: Vector3, \
 	if body.is_black_hole:
 		radius = schwarz_radius
 		body.rest_radius = radius
+		body.color = Vector3(0.0, 0.0, 0.0)
 	body.mesh = SphereMesh.new()
+	body.mesh.radial_segments = 8
+	body.mesh.rings = 4
 	body.set_display_radius(radius)
+	body.mesh.material = ShaderMaterial.new()
+	body.mesh.material.shader = body_shader.duplicate()
+	body.mesh.material.set_shader_parameter("color", color)
 	body.position = position
 	body.coord_velocity = coord_velocity
 	if coord_velocity.length() > Global.max_speed:
@@ -111,21 +123,26 @@ func reset_fields_and_potentials() -> void:
 ## simulation frame. If the sum is zero, then a default value is returned
 ## instead
 func calc_timestep(other) -> float:
-	var naive_speed_sum = coord_velocity.length() + other.coord_velocity.length()
-	var naive_grav_mag_sum = _newton_grav_field.length() + \
-			other._newton_grav_field.length()
-	var distance = (other.position - position).length() * Global.MAX_SPACE_ERROR
-	if distance < Global.MAX_SPACE_ERROR:
-		distance = Global.MAX_SPACE_ERROR
+	var distance = Global.max_space_error * (other.position - position).length()
+	if distance < Global.max_space_error:
+		distance = Global.max_space_error
+	var speed = coord_velocity.length()
+	var other_speed = other.coord_velocity.length()
+	if other_speed > speed:
+		speed = other_speed
+	var accel_mag = _newton_grav_field.length()
+	var other_accel_mag = other._newton_grav_field.length()
+	if other_accel_mag > accel_mag:
+		accel_mag = other_accel_mag
 	var timestep: float
-	if is_zero_approx(naive_grav_mag_sum):
-		if is_zero_approx(naive_speed_sum):
+	if is_zero_approx(accel_mag):
+		if is_zero_approx(speed):
 			return Global.DEFAULT_TIMESTEP
 		else:
-			timestep = distance / naive_speed_sum
+			timestep = distance / speed
 	else:
-		timestep = (-naive_speed_sum + sqrt(naive_speed_sum ** 2.0 + \
-				2.0 * naive_grav_mag_sum * distance)) / naive_grav_mag_sum
+		timestep = (-speed + sqrt(speed**2.0 + 2.0*accel_mag*distance)) / \
+				accel_mag
 	if is_zero_approx(timestep):
 		return Global.DEFAULT_TIMESTEP
 	return timestep
@@ -177,6 +194,9 @@ func is_colliding_with(other) -> bool:
 ## of mass, and marks the other body for deletion. Also turns the body into a
 ## black hole if the conditions are met. To be used during collisions
 func absorb(other) -> void:
+	var new_label := label
+	if mass < other.mass:
+		new_label = other.label
 	var new_mass = mass + other.mass
 	var new_position := get_center_of_mass_with(other)
 	var new_coord_momentum = get_coord_momentum() + other.get_coord_momentum()
@@ -193,16 +213,23 @@ func absorb(other) -> void:
 	if is_black_hole || other.is_black_hole:
 		new_rest_radius = sum_schwarz_radius
 		is_black_hole = true
+		color = Vector3(0.0, 0.0, 0.0)
+		mesh.material.set_shader_parameter("color", color)
 	else:
 		new_rest_radius = (rest_radius**3.0 + other.rest_radius**3.0) ** \
 				(1.0 / 3.0)
+	var new_color = (color + other.color) * 0.5
+	label = new_label
 	mass = new_mass
 	position = new_position
 	coord_velocity = new_coord_velocity
 	rest_radius = new_rest_radius
+	color = new_color
 	if rest_radius < sum_schwarz_radius:
 		rest_radius = sum_schwarz_radius
 		is_black_hole = true
+		color = Vector3(0.0, 0.0, 0.0)
+		mesh.material.set_shader_parameter("color", color)
 	set_display_radius(rest_radius)
 	other.should_be_deleted = true
 
@@ -239,6 +266,16 @@ func reset() -> void:
 ## factor for gravitational field calculation
 func _calc_length_contraction() -> void:
 	_coord_lorentz_recip = Global.lorentz_fact_recip(coord_velocity)
+	_length_contract_matrix = Basis.IDENTITY
+	if !coord_velocity.is_zero_approx():
+		for i in 3:
+			var basis_vector := _length_contract_matrix[i]
+			var basis_vector_par := basis_vector.project(coord_velocity)
+			var basis_vector_orth := basis_vector - basis_vector_par
+			_length_contract_matrix[i] = basis_vector_par * _coord_lorentz_recip + \
+					basis_vector_orth
+	mesh.material.set_shader_parameter("length_contract_mat", \
+			_length_contract_matrix)
 
 ## Calculates the escape velocity. Set in opposite direction of net gravitational
 ## field by default. If there is no net gravitational field, it is set in either
@@ -273,7 +310,8 @@ func _calc_infalling_vel() -> void:
 
 ## Returns information of the body in the form of a string
 func _to_string() -> String:
-	return ("Mass = %f\n" % mass) + \
+	return ("Label = %s\n" % label) + \
+			("Mass = %f\n" % mass) + \
 			("Radius = %f\n" % rest_radius) + \
 			("Position = <%f, %f, %f> (%f)\n" % [position.x, \
 					position.y, position.z, position.length()]) + \

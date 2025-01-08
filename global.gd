@@ -1,9 +1,8 @@
 extends Node
 
-const MAX_AXIS_DIST := 1e11 / sqrt(3.0)
-		## The maximum distance along any given coordinate axis in the simulation
-const MAX_SPACE_ERROR := 1e-4
-const DEFAULT_TIMESTEP := 1e-5
+const NUM_DIGITS := 15
+
+const DEFAULT_TIMESTEP := 1e-6
 const MIN_DISPLAY_RADIUS := 0.1
 
 # Fundamental constants in SI units
@@ -62,6 +61,13 @@ const MASS_SCALES := {
 	"observable_universe_mass" : 3.5e54
 } # Mass units expressed in kg
 
+var precision_digits := 8
+var max_error_power := -5
+var max_space_error := pow(10, max_error_power)
+var max_sim_dist := pow(10, NUM_DIGITS - precision_digits)
+		## The maximum distance along any given coordinate axis in the simulation
+var max_axis_dist := max_sim_dist / sqrt(3.0)
+
 # Names of the chosen units
 var space_unit := "meter"
 var time_unit := "second"
@@ -76,14 +82,28 @@ var light_speed = LIGHT_SPEED_SI * \
 # Bodies and escape velocities are capped at this speed to prevent
 # infinities. When escape velocities reach this, gravitational fields are set to
 # 0.
-var max_speed = (1.0 - MAX_SPACE_ERROR) * light_speed
+var max_speed = (1.0 - max_space_error) * light_speed
 
-func set_fund_consts() -> void:
+func set_precision(precision: int, max_error_pow: int) -> void:
+	precision_digits = precision
+	max_error_power = max_error_pow
+	max_space_error = pow(10, max_error_power)
+	max_sim_dist = pow(10, NUM_DIGITS - precision_digits + 1.0)
+		## The maximum distance along any given coordinate axis in the simulation
+	max_axis_dist = max_sim_dist / sqrt(3.0)
+
+func set_scales(space_u, time_u, mass_u) -> void:
+	space_unit = space_u
+	time_unit = time_u
+	mass_unit = mass_u
+	_set_fund_consts()
+
+func _set_fund_consts() -> void:
 	grav_const = GRAV_CONST_SI * (SPACE_SCALES[space_unit] ** -3.0) * \
 		MASS_SCALES[mass_unit] * (TIME_SCALES[time_unit] ** 2.0)
 	light_speed = LIGHT_SPEED_SI * \
 		(TIME_SCALES[time_unit] / SPACE_SCALES[space_unit])
-	max_speed = (1.0 - MAX_SPACE_ERROR) * light_speed
+	max_speed = (1.0 - max_space_error) * light_speed
 
 # Lorentz transformation functions
 func lorentz_factor(velocity: Vector3) -> float:
@@ -136,22 +156,22 @@ func relativistic_vel_add(vel1: Vector3, vel2_prime: Vector3) -> Vector3:
 
 func wrap_around_pos(position: Vector3) -> Vector3:
 	var new_position := position
-	if position.x > MAX_AXIS_DIST:
-		var diff := position.x - MAX_AXIS_DIST
-		new_position.x = -MAX_AXIS_DIST + diff
-	elif position.x < -MAX_AXIS_DIST:
-		var diff := -MAX_AXIS_DIST - position.x
-		new_position.x = MAX_AXIS_DIST - diff
-	if position.y > MAX_AXIS_DIST:
-		var diff := position.y - MAX_AXIS_DIST
-		new_position.y = -MAX_AXIS_DIST + diff
-	elif position.y < -MAX_AXIS_DIST:
-		var diff := -MAX_AXIS_DIST - position.y
-		new_position.y = MAX_AXIS_DIST - diff
-	if position.z > MAX_AXIS_DIST:
-		var diff := position.z - MAX_AXIS_DIST
-		new_position.z = -MAX_AXIS_DIST + diff
-	elif position.z < -MAX_AXIS_DIST:
-		var diff := -MAX_AXIS_DIST - position.z
-		new_position.z = MAX_AXIS_DIST - diff
+	if position.x > max_axis_dist:
+		var diff := position.x - max_axis_dist
+		new_position.x = -max_axis_dist + diff
+	elif position.x < -max_axis_dist:
+		var diff := -max_axis_dist - position.x
+		new_position.x = max_axis_dist - diff
+	if position.y > max_axis_dist:
+		var diff := position.y - max_axis_dist
+		new_position.y = -max_axis_dist + diff
+	elif position.y < -max_axis_dist:
+		var diff := -max_axis_dist - position.y
+		new_position.y = max_axis_dist - diff
+	if position.z > max_axis_dist:
+		var diff := position.z - max_axis_dist
+		new_position.z = -max_axis_dist + diff
+	elif position.z < -max_axis_dist:
+		var diff := -max_axis_dist - position.z
+		new_position.z = max_axis_dist - diff
 	return new_position

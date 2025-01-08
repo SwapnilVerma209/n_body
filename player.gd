@@ -1,10 +1,10 @@
 extends Camera3D
 
-const _MAX_SPEED := Global.MAX_AXIS_DIST
-const _ACCELERATION := 100.0
+const _ACCELERATION := 10.0
 const _ANGULAR_ACCEL := PI / (1.0**2 / 2.0)
 const _MAX_ANGULAR_SPEED := 2.0 * PI
 
+var _max_speed := Global.max_axis_dist
 var _speed := 0.0
 var _angular_speed := 0.0
 
@@ -12,8 +12,11 @@ var _angular_speed := 0.0
 ## Set player a quarter of the way towards the outer corner of the first octant,
 ## facing towards the origin
 func _ready() -> void:
-	far = 2e11
-	position = Vector3(0.0, 0.0, 1e3)
+	set_initial_position(Global.max_sim_dist)
+
+func set_initial_position(furthest_dist: float) -> void:
+	far = 2.0 * Global.max_sim_dist
+	position = Vector3(0.0, 0.0, furthest_dist)
 	transform = transform.looking_at(Vector3(0.0, 0.0, 0.0))
 	transform = transform.orthonormalized()
 
@@ -78,5 +81,5 @@ func _move(delta: float) -> void:
 	position += move_direction * _speed * delta
 	position = Global.wrap_around_pos(position)
 	_speed += _ACCELERATION * delta
-	if _speed > _MAX_SPEED:
-		_speed = _MAX_SPEED
+	if _speed > _max_speed:
+		_speed = _max_speed

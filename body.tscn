@@ -3,6 +3,8 @@
 [ext_resource type="Script" path="res://body.gd" id="1_uymkh"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_6216c"]
+radial_segments = 8
+rings = 4
 
 [node name="Body" type="MeshInstance3D"]
 mesh = SubResource("SphereMesh_6216c")
