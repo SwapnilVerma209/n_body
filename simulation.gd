@@ -4,8 +4,6 @@ const _MAX_CALIBRATION_ROUNDS := 10
 
 var max_frame_time_us: float
 var bodies := []
-var all_calibrated := false
-var calibration_count := 0
 var timestep: float
 var coord_time := 0.0
 
@@ -61,21 +59,14 @@ func _process(_delta: float) -> void:
 	var start_time := Time.get_ticks_usec()
 	var elapsed_time := 0
 	while elapsed_time < 0.75 * max_frame_time_us:
-		if !all_calibrated:
-			all_calibrated = true
-			if calibration_count <= _MAX_CALIBRATION_ROUNDS:
-				_reset_fields_and_potentials()
-				_calc_fields_and_potentials()
-				_calibrate_bodies()
-				calibration_count += 1
-		else:
-			calibration_count = 0
-			timestep = _calc_timestep()
-			_move_bodies(timestep)
-			_collide_bodies()
-			_reset_bodies()
-			all_calibrated = false
-			coord_time += timestep
+		_reset_fields_and_potentials()
+		_calc_fields_and_potentials()
+		_calibrate_bodies()
+		timestep = _calc_timestep()
+		_move_bodies(timestep)
+		_collide_bodies()
+		_reset_bodies()
+		coord_time += timestep
 		elapsed_time = Time.get_ticks_usec() - start_time
 
 ## Creates a new body instance with the given parameters, scaled with the given 
@@ -126,8 +117,6 @@ func _calibrate_bodies() -> void:
 		if body == null:
 			continue
 		body.calibrate()
-		if body.needs_recalibration:
-			all_calibrated = false
 
 func _reset_fields_and_potentials() -> void:
 	for body in bodies:
@@ -171,15 +160,9 @@ func _collide_bodies() -> void:
 			if bodies[j] == null:
 				continue
 			if bodies[i].is_colliding_with(bodies[j]):
-				#print("Collision at %f %ss:\n" % [coord_time, Global.time_unit])
-				#print(bodies[i])
-				#print(bodies[j])
 				bodies[i].absorb(bodies[j])
 				bodies[j].queue_free()
 				bodies[j] = null
-				#print("New body:")
-				#print(bodies[i])
-				#print()
 
 ## Resets every body
 func _reset_bodies() -> void:

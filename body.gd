@@ -17,15 +17,16 @@ var _escape_velocity: Vector3
 var _esc_lorentz_recip: float
 var _infalling_vel: Vector3
 var _infall_lorentz_recip: float
-var needs_recalibration: bool
 var is_black_hole: bool
 var should_be_deleted: bool
+var is_collidable: bool
 
 ## Creates a new body with a given mass, radius, position, and velocity based on
 ## the scaled units. Initial values assume no gravitational influences
 static func new_body(name_text: String, mass: float, \
 		radius: float, position: Vector3, coord_velocity: Vector3, \
-				color: Vector3 = Vector3(255.0, 255.0, 255.0)) -> Body:
+				color: Vector3=Vector3(255.0, 255.0, 255.0), \
+				is_collidable: bool = true) -> Body:
 	var body := body_scene.instantiate()
 	body.name_text = name_text
 	var label_node := body.get_node("Label")
@@ -41,6 +42,7 @@ static func new_body(name_text: String, mass: float, \
 		radius = schwarz_radius
 		body.rest_radius = radius
 		color = Vector3(0.0, 0.0, 0.0)
+		body.is_collidable = true
 	body.mesh = SphereMesh.new()
 	body.mesh.radial_segments = 8
 	body.mesh.rings = 4
@@ -99,21 +101,36 @@ func add_newton_grav_field_and_potential(other) -> void:
 func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	var vector_to_other := other_position - position
 	var distance := vector_to_other.length()
-	var field = (-Global.grav_const * mass / \
-			(distance**3.0 * _esc_lorentz_recip) * vector_to_other) * \
-			_infall_lorentz_recip
+	var radius_towards := get_radius_towards(other_position)
+	var rad_ratio := distance / radius_towards
+	var is_inside := distance < radius_towards
+	var field: Vector3
+	if is_inside:
+		field = (-Global.grav_const * mass * rad_ratio / (rest_radius ** 2)) * \
+				vector_to_other.normalized()
+	else:
+		field = -Global.grav_const * mass / (distance**3.0) * vector_to_other
 	if !coord_velocity.is_zero_approx():
 		var field_parallel = field.project(coord_velocity)
 		var field_orthogonal = field - field_parallel
 		field = field_parallel + (field_orthogonal / _coord_lorentz_recip)
-	var potential = -field.length() * distance
+	var potential: float
+	if is_inside:
+		var surface_field = (-Global.grav_const * mass / (rest_radius ** 2)) * \
+				vector_to_other.normalized()
+		var surface_field_par = surface_field.project(coord_velocity)
+		var surface_field_orth = surface_field - surface_field_par
+		surface_field = surface_field_par + surface_field_orth / \
+				_coord_lorentz_recip
+		potential = -surface_field.length() * radius_towards - \
+				(2 * field.length() * (radius_towards - distance))
+	else:
+		potential = -field.length() * distance
 	return [field, potential]
 
 ## Calibrates the body based on length contraction, escape velocity, and
 ## infalling velocity. To be called after all gravitational fields and potentials
-## are added. After this, if infall_lorentz_sig_change is true, then the fields
-## and potentials must be recalculated for all particles directly interacting
-## with it
+## are added.
 func calibrate() -> void:
 	_calc_esc_velocity()
 	_calc_infalling_vel()
@@ -291,7 +308,6 @@ func reset() -> void:
 	_esc_lorentz_recip = 1.0
 	_infalling_vel = coord_velocity
 	_infall_lorentz_recip = _coord_lorentz_recip
-	needs_recalibration = true
 
 ## Calculates the length contraction factors and saves the coordinate lorentz
 ## factor for gravitational field calculation
@@ -332,12 +348,9 @@ func _calc_esc_velocity() -> void:
 ## Calculates the velocity of the body in the frame of reference of an observer
 ## falling at the escape speed towards the body at the location. Saves this 
 func _calc_infalling_vel() -> void:
-	_infalling_vel = Global.relativistic_vel_add(_escape_velocity, \
+	_infalling_vel = Global.relativistic_vel_add(-_escape_velocity, \
 			coord_velocity)
-	var new_infall_lorentz_recip = Global.lorentz_fact_recip(_infalling_vel)
-	needs_recalibration = \
-			abs(1.0 - new_infall_lorentz_recip / _infall_lorentz_recip) >= 1e-9
-	_infall_lorentz_recip = new_infall_lorentz_recip
+	_infall_lorentz_recip = Global.lorentz_fact_recip(_infalling_vel)
 
 ## Returns information of the body in the form of a string
 func _to_string() -> String:
