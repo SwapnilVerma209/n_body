@@ -4,8 +4,7 @@ extends MeshInstance3D
 static var body_scene := preload("res://body.tscn")
 static var body_shader := preload("res://body.gdshader")
 
-@export var label: String
-@export var color: Vector3
+@export var name_text: String
 @export var mass: float
 @export var rest_radius: float
 @export var coord_velocity: Vector3
@@ -24,11 +23,16 @@ var should_be_deleted: bool
 
 ## Creates a new body with a given mass, radius, position, and velocity based on
 ## the scaled units. Initial values assume no gravitational influences
-static func new_body(label: String, color: Vector3, mass: float, \
-		radius: float, position: Vector3, coord_velocity: Vector3) -> Body:
+static func new_body(name_text: String, mass: float, \
+		radius: float, position: Vector3, coord_velocity: Vector3, \
+				color: Vector3 = Vector3(255.0, 255.0, 255.0)) -> Body:
 	var body := body_scene.instantiate()
-	body.label = label
-	body.color = color
+	body.name_text = name_text
+	var label_node := body.get_node("Label")
+	label_node.set_text(name_text)
+	label_node.set_billboard_mode(BaseMaterial3D.BILLBOARD_ENABLED)
+	label_node.set_draw_flag(Label3D.FLAG_FIXED_SIZE, true)
+	label_node.set_pixel_size(0.001)
 	body.mass = mass
 	body.rest_radius = radius
 	var schwarz_radius = body.get_schwarz_radius()
@@ -36,7 +40,7 @@ static func new_body(label: String, color: Vector3, mass: float, \
 	if body.is_black_hole:
 		radius = schwarz_radius
 		body.rest_radius = radius
-		body.color = Vector3(0.0, 0.0, 0.0)
+		color = Vector3(0.0, 0.0, 0.0)
 	body.mesh = SphereMesh.new()
 	body.mesh.radial_segments = 8
 	body.mesh.rings = 4
@@ -71,9 +75,13 @@ func set_display_radius(radius: float) -> void:
 	if radius < Global.MIN_DISPLAY_RADIUS:
 		mesh.set_radius(Global.MIN_DISPLAY_RADIUS)
 		mesh.set_height(2.0 * Global.MIN_DISPLAY_RADIUS)
+		get_node("Label").position = Vector3(0.0, Global.MIN_DISPLAY_RADIUS, \
+				0.0) * 1.1
 		return
 	mesh.set_radius(radius)
 	mesh.set_height(2.0 * radius)
+	get_node("Label").position = Vector3(0.0, radius, \
+				0.0) * 1.1
 
 ## Adds the contribution to the gravitational field and potential by the other 
 ## body
@@ -117,52 +125,70 @@ func reset_fields_and_potentials() -> void:
 	_newton_grav_potential = 0.0
 	_escape_velocity = Vector3(0.0, 0.0, 0.0)
 
-## Calculates a timestep for this and another body. In the simulation, this is
-## done with pairs of bodies, and the pair with the lowest timestep sets the
-## next timestep. This is done based on the speeds of the bodies in the
-## simulation frame. If the sum is zero, then a default value is returned
-## instead
-func calc_timestep(other) -> float:
-	var distance = Global.max_space_error * (other.position - position).length()
-	if distance < Global.max_space_error:
-		distance = Global.max_space_error
+## Calculates a timestep for this and another body. A max timestep 
+func calc_timestep(other) -> Array:
+	var distance = (other.position - position).length()
+	var min_dist = Global.max_space_error * distance
+	var max_dist = min_dist * 10.0
+	if min_dist < Global.max_space_error:
+		min_dist = Global.max_space_error
+		if min_dist > max_dist:
+			max_dist = Global.max_space_error
 	var speed = coord_velocity.length()
 	var other_speed = other.coord_velocity.length()
-	if other_speed > speed:
-		speed = other_speed
+	var slow_speed: float
+	var fast_speed: float
+	if speed <= other_speed:
+		slow_speed = speed
+		fast_speed = other_speed
+	else:
+		slow_speed = other_speed
+		fast_speed = speed
 	var accel_mag = _newton_grav_field.length()
 	var other_accel_mag = other._newton_grav_field.length()
-	if other_accel_mag > accel_mag:
-		accel_mag = other_accel_mag
-	var timestep: float
-	if is_zero_approx(accel_mag):
-		if is_zero_approx(speed):
-			return Global.DEFAULT_TIMESTEP
-		else:
-			timestep = distance / speed
+	var low_accel_mag: float
+	var high_accel_mag: float
+	if accel_mag <= other_accel_mag:
+		low_accel_mag = accel_mag
+		high_accel_mag = other_accel_mag
 	else:
-		timestep = (-speed + sqrt(speed**2.0 + 2.0*accel_mag*distance)) / \
-				accel_mag
-	if is_zero_approx(timestep):
-		return Global.DEFAULT_TIMESTEP
-	return timestep
+		low_accel_mag = other_accel_mag
+		high_accel_mag = accel_mag
+	var max_timestep: float
+	var min_timestep: float
+	if is_zero_approx(low_accel_mag):
+		if is_zero_approx(slow_speed):
+			max_timestep = Global.DEFAULT_TIMESTEP
+			min_timestep = Global.DEFAULT_TIMESTEP
+		else:
+			max_timestep = max_dist / slow_speed
+	else:
+		max_timestep = (-slow_speed + \
+				sqrt(slow_speed**2.0 + 2.0*low_accel_mag*max_dist)) / \
+				low_accel_mag
+	if is_zero_approx(high_accel_mag):
+		if is_zero_approx(fast_speed):
+			min_timestep = Global.DEFAULT_TIMESTEP
+		else:
+			min_timestep = min_dist / fast_speed
+	else:
+		min_timestep = (-fast_speed + \
+				sqrt(fast_speed**2.0 + 2.0*high_accel_mag*min_dist)) / \
+				high_accel_mag
+	if is_zero_approx(max_timestep):
+		max_timestep = Global.DEFAULT_TIMESTEP
+		min_timestep = Global.DEFAULT_TIMESTEP
+	elif is_zero_approx(min_timestep):
+		min_timestep = Global.DEFAULT_TIMESTEP
+	return [min_timestep, max_timestep]
 
 ## Move the body to its new position, and calculate its new velocity
 func move(coord_timestep: float) -> void:
-	var local_timestep := coord_timestep * _esc_lorentz_recip
-	#print("Local timestep = %f" % local_timestep)
-	#print("Old velocity:")
-	#print(coord_velocity)
-	position += coord_velocity * local_timestep
+	position += coord_velocity * coord_timestep * _esc_lorentz_recip
 	coord_velocity = Global.relativistic_vel_add( \
 			_newton_grav_field / (_esc_lorentz_recip**2.0) * coord_timestep, \
 			coord_velocity)
-	#print("Gravitational field:")
-	#print(_newton_grav_field / (_esc_lorentz_recip**2.0))
-	#print("New velocity:")
-	#print(coord_velocity)
-	#print()
-	proper_time += local_timestep
+	proper_time += coord_timestep * _infall_lorentz_recip
 
 ## Calculates the radius in the direction of the given position
 func get_radius_towards(other_position: Vector3) -> float:
@@ -194,9 +220,9 @@ func is_colliding_with(other) -> bool:
 ## of mass, and marks the other body for deletion. Also turns the body into a
 ## black hole if the conditions are met. To be used during collisions
 func absorb(other) -> void:
-	var new_label := label
+	var new_name_text := name_text
 	if mass < other.mass:
-		new_label = other.label
+		new_name_text = other.name_text
 	var new_mass = mass + other.mass
 	var new_position := get_center_of_mass_with(other)
 	var new_coord_momentum = get_coord_momentum() + other.get_coord_momentum()
@@ -210,26 +236,31 @@ func absorb(other) -> void:
 	var schwarz_radius := get_schwarz_radius()
 	var other_schwarz_radius = other.get_schwarz_radius()
 	var sum_schwarz_radius = schwarz_radius + other_schwarz_radius
+	var old_color = mesh.material.get_shader_parameter("color")
+	var other_old_color = other.mesh.material.get_shader_parameter("color")
+	var new_color : Vector3
 	if is_black_hole || other.is_black_hole:
 		new_rest_radius = sum_schwarz_radius
 		is_black_hole = true
-		color = Vector3(0.0, 0.0, 0.0)
-		mesh.material.set_shader_parameter("color", color)
+		new_color = Vector3(0.0, 0.0, 0.0)
 	else:
-		new_rest_radius = (rest_radius**3.0 + other.rest_radius**3.0) ** \
-				(1.0 / 3.0)
-	var new_color = (color + other.color) * 0.5
-	label = new_label
+		var radius_cubed := rest_radius ** 3.0
+		var other_radius_cubed = other.rest_radius ** 3.0
+		var radii_cubed_sum = radius_cubed + other_radius_cubed
+		new_rest_radius = radii_cubed_sum ** (1.0 / 3.0)
+		new_color = (radius_cubed * old_color + other_radius_cubed * \
+				other_old_color) / radii_cubed_sum
+	name_text = new_name_text
+	get_node("Label").set_text(name_text)
 	mass = new_mass
 	position = new_position
 	coord_velocity = new_coord_velocity
 	rest_radius = new_rest_radius
-	color = new_color
 	if rest_radius < sum_schwarz_radius:
 		rest_radius = sum_schwarz_radius
 		is_black_hole = true
-		color = Vector3(0.0, 0.0, 0.0)
-		mesh.material.set_shader_parameter("color", color)
+		new_color = Vector3(0.0, 0.0, 0.0)
+	mesh.material.set_shader_parameter("color", new_color)
 	set_display_radius(rest_radius)
 	other.should_be_deleted = true
 
@@ -272,8 +303,8 @@ func _calc_length_contraction() -> void:
 			var basis_vector := _length_contract_matrix[i]
 			var basis_vector_par := basis_vector.project(coord_velocity)
 			var basis_vector_orth := basis_vector - basis_vector_par
-			_length_contract_matrix[i] = basis_vector_par * _coord_lorentz_recip + \
-					basis_vector_orth
+			_length_contract_matrix[i] = \
+					basis_vector_par * _coord_lorentz_recip + basis_vector_orth
 	mesh.material.set_shader_parameter("length_contract_mat", \
 			_length_contract_matrix)
 
@@ -310,7 +341,7 @@ func _calc_infalling_vel() -> void:
 
 ## Returns information of the body in the form of a string
 func _to_string() -> String:
-	return ("Label = %s\n" % label) + \
+	return ("Name = %s\n" % name_text) + \
 			("Mass = %f\n" % mass) + \
 			("Radius = %f\n" % rest_radius) + \
 			("Position = <%f, %f, %f> (%f)\n" % [position.x, \

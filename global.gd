@@ -2,7 +2,7 @@ extends Node
 
 const NUM_DIGITS := 15
 
-const DEFAULT_TIMESTEP := 1e-6
+const DEFAULT_TIMESTEP := 1e-3
 const MIN_DISPLAY_RADIUS := 0.1
 
 # Fundamental constants in SI units
@@ -43,6 +43,7 @@ const TIME_SCALES := {
 	"decade" : 10.0 * 365.25 * 24.0 * 3600.0,
 	"century" : 100.0 * 365.25 * 24.0 * 3600.0,
 	"millenia" : 1000.0 * 365.25 * 24.0 * 3600.0,
+	"megayear" : 1e6 * 365.25 * 24.0 * 3600.0,
 	"gigayear" : 1e9 * 365.25 * 24.0 * 3600.0
 } # Time units expressed in s
 const MASS_SCALES := {
@@ -88,7 +89,8 @@ func set_precision(precision: int, max_error_pow: int) -> void:
 	precision_digits = precision
 	max_error_power = max_error_pow
 	max_space_error = pow(10, max_error_power)
-	max_sim_dist = pow(10, NUM_DIGITS - precision_digits + 1.0)
+	max_speed = (1.0 - max_space_error) * light_speed
+	max_sim_dist = pow(10, NUM_DIGITS - precision_digits)
 		## The maximum distance along any given coordinate axis in the simulation
 	max_axis_dist = max_sim_dist / sqrt(3.0)
 

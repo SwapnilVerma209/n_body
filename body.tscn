@@ -9,3 +9,5 @@ rings = 4
 [node name="Body" type="MeshInstance3D"]
 mesh = SubResource("SphereMesh_6216c")
 script = ExtResource("1_uymkh")
+
+[node name="Label" type="Label3D" parent="."]

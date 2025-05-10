@@ -10,7 +10,7 @@ void vertex() {
 
 void fragment() {
 	// Called for every pixel the material is visible on.
-	ALBEDO = color;
+	ALBEDO = color * 0.1;
 }
 
 //void light() {

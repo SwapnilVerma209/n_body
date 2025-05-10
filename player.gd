@@ -1,10 +1,9 @@
 extends Camera3D
-
-const _ACCELERATION := 10.0
 const _ANGULAR_ACCEL := PI / (1.0**2 / 2.0)
 const _MAX_ANGULAR_SPEED := 2.0 * PI
 
 var _max_speed := Global.max_axis_dist
+var _acceleration := 2 * Global.max_axis_dist / 25.0
 var _speed := 0.0
 var _angular_speed := 0.0
 
@@ -19,6 +18,7 @@ func set_initial_position(furthest_dist: float) -> void:
 	position = Vector3(0.0, 0.0, furthest_dist)
 	transform = transform.looking_at(Vector3(0.0, 0.0, 0.0))
 	transform = transform.orthonormalized()
+	_acceleration = 2 * furthest_dist / 25.0
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
@@ -80,6 +80,6 @@ func _move(delta: float) -> void:
 	move_direction = move_direction.normalized()
 	position += move_direction * _speed * delta
 	position = Global.wrap_around_pos(position)
-	_speed += _ACCELERATION * delta
+	_speed += _acceleration * delta
 	if _speed > _max_speed:
 		_speed = _max_speed

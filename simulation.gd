@@ -11,30 +11,41 @@ var coord_time := 0.0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	Global.set_precision(7, -4)
-	Global.set_scales("kilometer", "millisecond", "kilogram")
-	
-	var black_hole := _add_body( \
-		"Black hole", \
-		Vector3(), \
-		8.0, "solar_mass", \
-		0.0, "kilometer", \
-		Vector3(0.0, 0.0, 0.0), "kilometer", \
-		Vector3(0.0, 0.0, 0.0), "kilometer", "millisecond")
-	var schwarz_radius := black_hole.get_schwarz_radius()
-	var test_distance := randf_range(1.5, 10.0) * schwarz_radius
-	print("Distance = %f Schwarzschild Radii" % \
-			(test_distance / schwarz_radius))
-	var test_position := Vector3(test_distance, 0.0, 0.0)
-	var test_speed := black_hole.get_rest_orbit_speed(test_distance)
-	var test_velocity := Vector3(0.0, test_speed, 0.0)
-	_add_body( \
-		"Test particle", \
-		Vector3(255.0, 255.0, 255.0), \
-		1.0, "kilogram", \
-		5.0, "kilometer", \
-		test_position, "kilometer", \
-		test_velocity, "kilometer", "millisecond")
+	Global.set_precision(3, -3)
+	Global.set_scales("kilometer", "hour", "kilogram")
+	var black_hole := _add_body("Black hole", \
+			8.0, "solar_mass", \
+			0.0, "kilometer", \
+			Vector3(), "kilometer", \
+			Vector3(), "kilometer", "hour", \
+			Vector3())
+	var schwarz_rad := black_hole.get_schwarz_radius()
+	var num_bodies := 100
+	var mass := 1.0
+	var radius := 1.0
+	for i in num_bodies:
+		var position := (Vector3(2.0, 0.0, 0.0) + randf_range(0.0, 1.0) * \
+				Vector3( \
+				randf_range(-1.0, 1.0), \
+				randf_range(-1.0, 1.0), \
+				randf_range(-1.0, 1.0)).normalized())
+		var speed := black_hole.get_rest_orbit_speed(3.0 * \
+				Global.SPACE_SCALES["solar_radius"] / \
+				Global.SPACE_SCALES[Global.space_unit]) * 0.5
+		var velocity := speed * Vector3( \
+				randf_range(0.0, 0.0), \
+				randf_range(0.0, 0.0), \
+				randf_range(-1.0, -1.0)).normalized()
+		var color := Vector3( \
+				randf_range(32.0, 255.0), \
+				randf_range(32.0, 255.0), \
+				randf_range(32.0, 255.0))
+		_add_body("Body %d" % i, \
+				mass, "kilogram", \
+				radius, "kilometer", \
+				position, "solar_radius", \
+				velocity, "kilometer", "hour", \
+				color)
 	
 	var furthest_dist := _calc_furthest_dist()
 	if is_zero_approx(furthest_dist):
@@ -69,11 +80,11 @@ func _process(_delta: float) -> void:
 
 ## Creates a new body instance with the given parameters, scaled with the given 
 ## units. Adds the body into the simulation, and returns a reference to it
-func _add_body(label: String, color: Vector3, mass_amount: float, \
-		mass_unit: String, radius_amount: float, rad_space_unit: String, \
-		pos_amount: Vector3, pos_space_unit: String, vel_amount: Vector3, \
-		vel_space_unit: String, vel_time_unit: String) -> \
-		Body:
+func _add_body(label: String, mass_amount: float, mass_unit: String, \
+		radius_amount: float, rad_space_unit: String, pos_amount: Vector3, \
+		pos_space_unit: String, vel_amount: Vector3, vel_space_unit: String, \
+		vel_time_unit: String, color: Vector3 = Vector3(255.0, 255.0, 255.0)) \
+		-> Body:
 	var mass = mass_amount * Global.MASS_SCALES[mass_unit] / \
 			Global.MASS_SCALES[Global.mass_unit]
 	var radius = radius_amount * Global.SPACE_SCALES[rad_space_unit] / \
@@ -84,7 +95,7 @@ func _add_body(label: String, color: Vector3, mass_amount: float, \
 			Global.SPACE_SCALES[Global.space_unit]) / \
 			(Global.TIME_SCALES[vel_time_unit] / \
 			Global.TIME_SCALES[Global.time_unit])
-	var body := Body.new_body(label, color, mass, radius, position, velocity)
+	var body := Body.new_body(label, mass, radius, position, velocity, color)
 	bodies.append(body)
 	$Bodies.add_child(body)
 	return body
@@ -127,19 +138,22 @@ func _reset_fields_and_potentials() -> void:
 ## Calculates timesteps between each pair, and returns the smallest one. If
 ## there is only one body, a default value is used.
 func _calc_timestep() -> float:
-	var timestep := INF
+	var min_timestep := 0.0
+	var max_timestep := INF
 	for i in range(bodies.size()):
 		if bodies[i] == null:
 			continue
 		for j in range(i+1, bodies.size()):
 			if bodies[j] == null:
 				continue
-			var new_timestep = bodies[i].calc_timestep(bodies[j])
-			if new_timestep < timestep:
-				timestep = new_timestep
-	if timestep == INF:
-		return Global.DEFAULT_TIMESTEP
-	return timestep
+			var new_timesteps = bodies[i].calc_timestep(bodies[j])
+			if new_timesteps[0] > min_timestep:
+				min_timestep = new_timesteps[0]
+			if new_timesteps[1] < max_timestep:
+				max_timestep = new_timesteps[1]
+			if max_timestep <= min_timestep:
+				return max_timestep
+	return min_timestep
 
 ## Moves each body according to the timestep
 func _move_bodies(timestep: float) -> void:

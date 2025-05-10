@@ -1,10 +1,15 @@
-[gd_scene load_steps=3 format=3 uid="uid://i7h17w2txchk"]
+[gd_scene load_steps=5 format=3 uid="uid://i7h17w2txchk"]
 
 [ext_resource type="Script" path="res://simulation.gd" id="1_sf3h8"]
 [ext_resource type="Script" path="res://player.gd" id="2_a0k5w"]
+[ext_resource type="PackedScene" uid="uid://b7qfm5cfphg1x" path="res://hud.tscn" id="2_lyt6a"]
+[ext_resource type="Script" path="res://hud.gd" id="3_lhppo"]
 
 [node name="Simulation" type="Node3D"]
 script = ExtResource("1_sf3h8")
+
+[node name="HUD" parent="." instance=ExtResource("2_lyt6a")]
+script = ExtResource("3_lhppo")
 
 [node name="Player" type="Camera3D" parent="."]
 script = ExtResource("2_a0k5w")
