@@ -109,7 +109,7 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 		field = (-Global.grav_const * mass * rad_ratio / (rest_radius ** 2)) * \
 				vector_to_other.normalized()
 	else:
-		field = -Global.grav_const * mass / (distance**3.0) * vector_to_other
+		field = (-Global.grav_const * mass / (distance**3.0)) * vector_to_other
 	if !coord_velocity.is_zero_approx():
 		var field_parallel = field.project(coord_velocity)
 		var field_orthogonal = field - field_parallel
@@ -118,12 +118,14 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	if is_inside:
 		var surface_field = (-Global.grav_const * mass / (rest_radius ** 2)) * \
 				vector_to_other.normalized()
-		var surface_field_par = surface_field.project(coord_velocity)
-		var surface_field_orth = surface_field - surface_field_par
-		surface_field = surface_field_par + surface_field_orth / \
-				_coord_lorentz_recip
+		if !coord_velocity.is_zero_approx():
+			var surface_field_par = surface_field.project(coord_velocity)
+			var surface_field_orth = surface_field - surface_field_par
+			surface_field = surface_field_par + surface_field_orth / \
+					_coord_lorentz_recip
 		potential = -surface_field.length() * radius_towards - \
-				(2 * field.length() * (radius_towards - distance))
+				(field.length() * (radius_towards**2 - distance**2) / \
+				(2.0 * distance))
 	else:
 		potential = -field.length() * distance
 	return [field, potential]
@@ -228,6 +230,9 @@ func get_radius_towards(other_position: Vector3) -> float:
 
 ## Returns true if this body is colliding with the other body, false otherwise
 func is_colliding_with(other) -> bool:
+	if (!is_collidable and !other.is_black_hole) or \
+			(!is_black_hole and !other.is_collidable):
+		return false
 	var vector_to_other = other.position - position
 	var distance = vector_to_other.length()
 	return distance <= get_radius_towards(other.position) + \
@@ -259,6 +264,7 @@ func absorb(other) -> void:
 	if is_black_hole || other.is_black_hole:
 		new_rest_radius = sum_schwarz_radius
 		is_black_hole = true
+		is_collidable = true
 		new_color = Vector3(0.0, 0.0, 0.0)
 	else:
 		var radius_cubed := rest_radius ** 3.0
@@ -276,6 +282,7 @@ func absorb(other) -> void:
 	if rest_radius < sum_schwarz_radius:
 		rest_radius = sum_schwarz_radius
 		is_black_hole = true
+		is_collidable = true
 		new_color = Vector3(0.0, 0.0, 0.0)
 	mesh.material.set_shader_parameter("color", new_color)
 	set_display_radius(rest_radius)

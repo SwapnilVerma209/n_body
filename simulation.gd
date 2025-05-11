@@ -10,40 +10,22 @@ var coord_time := 0.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	Global.set_precision(3, -3)
-	Global.set_scales("kilometer", "hour", "kilogram")
+	Global.set_scales("kilometer", "second", "kilogram")
+	
 	var black_hole := _add_body("Black hole", \
-			8.0, "solar_mass", \
+			1.0, "solar_mass", \
 			0.0, "kilometer", \
-			Vector3(), "kilometer", \
-			Vector3(), "kilometer", "hour", \
-			Vector3())
-	var schwarz_rad := black_hole.get_schwarz_radius()
-	var num_bodies := 100
-	var mass := 1.0
-	var radius := 1.0
-	for i in num_bodies:
-		var position := (Vector3(2.0, 0.0, 0.0) + randf_range(0.0, 1.0) * \
-				Vector3( \
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0)).normalized())
-		var speed := black_hole.get_rest_orbit_speed(3.0 * \
-				Global.SPACE_SCALES["solar_radius"] / \
-				Global.SPACE_SCALES[Global.space_unit]) * 0.5
-		var velocity := speed * Vector3( \
-				randf_range(0.0, 0.0), \
-				randf_range(0.0, 0.0), \
-				randf_range(-1.0, -1.0)).normalized()
-		var color := Vector3( \
-				randf_range(32.0, 255.0), \
-				randf_range(32.0, 255.0), \
-				randf_range(32.0, 255.0))
-		_add_body("Body %d" % i, \
-				mass, "kilogram", \
-				radius, "kilometer", \
-				position, "solar_radius", \
-				velocity, "kilometer", "hour", \
-				color)
+			Vector3(0.0, 0.0, 0.0), "solar_radius", \
+			Vector3(), "kilometer", "minute", \
+			Vector3(), \
+			true)
+	var sun := _add_body("Clueless collisionless sun", \
+			1.0, "solar_mass", \
+			1.0, "solar_radius", \
+			Vector3(2.0, 0.0, 0.0), "solar_radius", \
+			Vector3(), "kilometer", "minute", \
+			Vector3(32.0, 32.0, 0.0), \
+			false)
 	
 	var furthest_dist := _calc_furthest_dist()
 	if is_zero_approx(furthest_dist):
@@ -74,7 +56,8 @@ func _process(_delta: float) -> void:
 func _add_body(label: String, mass_amount: float, mass_unit: String, \
 		radius_amount: float, rad_space_unit: String, pos_amount: Vector3, \
 		pos_space_unit: String, vel_amount: Vector3, vel_space_unit: String, \
-		vel_time_unit: String, color: Vector3 = Vector3(255.0, 255.0, 255.0)) \
+		vel_time_unit: String, color: Vector3=Vector3(255.0, 255.0, 255.0),
+		is_collidable=true) \
 		-> Body:
 	var mass = mass_amount * Global.MASS_SCALES[mass_unit] / \
 			Global.MASS_SCALES[Global.mass_unit]
@@ -86,7 +69,8 @@ func _add_body(label: String, mass_amount: float, mass_unit: String, \
 			Global.SPACE_SCALES[Global.space_unit]) / \
 			(Global.TIME_SCALES[vel_time_unit] / \
 			Global.TIME_SCALES[Global.time_unit])
-	var body := Body.new_body(label, mass, radius, position, velocity, color)
+	var body := Body.new_body(label, mass, radius, position, velocity, color, \
+			is_collidable)
 	bodies.append(body)
 	$Bodies.add_child(body)
 	return body
@@ -142,6 +126,8 @@ func _calc_timestep() -> float:
 				max_timestep = new_timesteps[1]
 			if max_timestep <= min_timestep:
 				return max_timestep
+	if min_timestep == 0:
+		return Global.DEFAULT_TIMESTEP
 	return min_timestep
 
 ## Moves each body according to the timestep
