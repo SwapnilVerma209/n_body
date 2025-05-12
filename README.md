@@ -48,7 +48,8 @@ using any of the units in global.gd, and they will be automatically converted
 to the units of the simulation. color takes a 3Vector representing a RGB value.
 If no color is specified, it is set to pure white. is_collidable determines if
 your body can collide with other bodies (all bodies will collide with black
-holes).
+holes). With this, loops, and random number generation, you can go crazy and
+create all kinds of universes!
 
 ### Note on Black Holes
 Gravity in this simulation is based on Schwarzschild geometry, so black holes
