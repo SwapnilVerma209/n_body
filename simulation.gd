@@ -10,22 +10,38 @@ var coord_time := 0.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	Global.set_precision(3, -3)
-	Global.set_scales("kilometer", "second", "kilogram")
+	Global.set_scales("light_year", "megayear", "solar_mass")
 	
-	var black_hole := _add_body("Black hole", \
-			1.0, "solar_mass", \
-			0.0, "kilometer", \
-			Vector3(0.0, 0.0, 0.0), "solar_radius", \
-			Vector3(), "kilometer", "minute", \
-			Vector3(), \
-			true)
-	var sun := _add_body("Clueless collisionless sun", \
-			1.0, "solar_mass", \
-			1.0, "solar_radius", \
-			Vector3(2.0, 0.0, 0.0), "solar_radius", \
-			Vector3(), "kilometer", "minute", \
-			Vector3(32.0, 32.0, 0.0), \
-			false)
+	var mass := Global.MASS_SCALES["milky_way_mass"] / \
+			Global.MASS_SCALES["solar_mass"] / 200.0
+	var spawn_radius := 4e6
+	
+	for i in range(150):
+		var distance := spawn_radius * randf_range(0.0, 1.0)
+		_add_body("Dark matter cloud %d" % i, \
+				mass, "solar_mass", \
+				100000.0, "light_year",
+				distance * Vector3( \
+						randf_range(-1.0, 1.0), \
+						randf_range(-1.0, 1.0), \
+						randf_range(-1.0, 1.0)
+				).normalized(), "light_year", \
+				Vector3(), "light_year", "millenia", \
+				Vector3(32.0, 32.0, 32.0), \
+				false)
+	for i in range(50):
+		var distance := spawn_radius * randf_range(0.0, 1.0)
+		_add_body("Baryonic clump %d" % i, \
+				mass, "solar_mass", \
+				1000, "light_year", \
+				distance * Vector3( \
+						randf_range(-1.0, 1.0), \
+						randf_range(-1.0, 1.0), \
+						randf_range(-1.0, 1.0)
+				).normalized(), "light_year", \
+				Vector3(), "light_year", "millenia", \
+				Vector3(255.0, 255.0, 0.0), \
+				true)
 	
 	var furthest_dist := _calc_furthest_dist()
 	if is_zero_approx(furthest_dist):
