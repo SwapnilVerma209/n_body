@@ -36,7 +36,7 @@ units are ideal depends on the scale of the simulation.
 Now you can start adding bodies. An example is provided. You need to use the
 function
 ```
-_add_body(_add_body(label: String, mass_amount: float, mass_unit: String,
+_add_body(label: String, mass_amount: float, mass_unit: String,
 		radius_amount: float, rad_space_unit: String, pos_amount: Vector3,
 		pos_space_unit: String, vel_amount: Vector3, vel_space_unit: String,
 		vel_time_unit: String, color: Vector3=Vector3(255.0, 255.0, 255.0),
@@ -67,10 +67,17 @@ fast movements. Will add mouse camera controls later.
 
 ### Controls
 W - Move forward
+
 A - Move left
+
 S - Move backward
+
 D - Move right
+
 Up arrow - Look up
+
 Left arrow - Look left
+
 Down arrow - Look down
+
 Right arrow - Look right
