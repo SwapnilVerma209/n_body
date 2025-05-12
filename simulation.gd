@@ -9,9 +9,11 @@ var coord_time := 0.0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
+	# Set precision and units here
 	Global.set_precision(3, -3)
 	Global.set_scales("light_year", "megayear", "solar_mass")
 	
+	# Add your bodies here
 	var mass := Global.MASS_SCALES["milky_way_mass"] / \
 			Global.MASS_SCALES["solar_mass"] / 200.0
 	var spawn_radius := 4e6
@@ -43,6 +45,7 @@ func _ready() -> void:
 				Vector3(255.0, 255.0, 0.0), \
 				true)
 	
+	# Do not modify
 	var furthest_dist := _calc_furthest_dist()
 	if is_zero_approx(furthest_dist):
 		furthest_dist = bodies[0].rest_radius * 5.0
