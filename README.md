@@ -59,3 +59,18 @@ orbiting elliptically will have the expected apsidal precession. However, due to
 the nature of leapfrog integration, which this simulation uses, these orbits are
 going to be significantly less stable than in reality. You can mitigate this
 by increasing precision, but that also makes the simulation slower.
+
+## Moving around in the simulation
+Movement will start slow, but accelerate to high speeds as long as you keep
+holding the movement keys. This is to allow both slow, precise movements and
+fast movements. Will add mouse camera controls later.
+
+### Controls
+W - Move forward
+A - Move left
+S - Move backward
+D - Move right
+Up arrow - Look up
+Left arrow - Look left
+Down arrow - Look down
+Right arrow - Look right
