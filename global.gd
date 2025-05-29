@@ -7,7 +7,9 @@ const MIN_DISPLAY_RADIUS := 0.1
 
 # Fundamental constants in SI units
 const GRAV_CONST_SI := 6.67408e-11 ## Units: m^3 kg^-1 s^-2
+const COULOMB_CONST_SI := 8.9875517862e9 ## Units: N m^2 C^-2 (or kg m^3 C^-2 s^-2)
 const LIGHT_SPEED_SI := 299792458.0 ## Units: m / s
+
 
 # Scales of various units
 const SPACE_SCALES := {
@@ -61,48 +63,57 @@ const MASS_SCALES := {
 	"milky_way_mass" : 2.29e42,
 	"observable_universe_mass" : 3.5e54
 } # Mass units expressed in kg
+const CHARGE_SCALES := {
+	"coulomb" : 1.0,
+	"elementary_charge" : 1.602176634e-19
+}
 
-var precision_digits := 8
-var max_error_power := -5
+var precision_digits := 3
+var max_error_power := -precision_digits
 var max_space_error := pow(10, max_error_power)
 var max_sim_dist := pow(10, NUM_DIGITS - precision_digits)
 		## The maximum distance along any given coordinate axis in the simulation
 var max_axis_dist := max_sim_dist / sqrt(3.0)
 
-# Names of the chosen units
+# Names of the chosen units, defaulted to SI
 var space_unit := "meter"
 var time_unit := "second"
 var mass_unit := "kilogram"
+var charge_unit := "coulomb"
 
-# Fundamental constants scaled to chosen units
-var grav_const = GRAV_CONST_SI * (SPACE_SCALES[space_unit] ** -3.0) * \
-		MASS_SCALES[mass_unit] * (TIME_SCALES[time_unit] ** 2.0)
-var light_speed = LIGHT_SPEED_SI * \
-		(TIME_SCALES[time_unit] / SPACE_SCALES[space_unit])
+# Fundamental constants default to SI units
+var grav_const = GRAV_CONST_SI
+var coulomb_const = COULOMB_CONST_SI
+var light_speed = LIGHT_SPEED_SI
 
 # Bodies and escape velocities are capped at this speed to prevent
 # infinities. When escape velocities reach this, gravitational fields are set to
 # 0.
 var max_speed = (1.0 - max_space_error) * light_speed
 
-func set_precision(precision: int, max_error_pow: int) -> void:
+func set_precision(precision: int) -> void:
 	precision_digits = precision
-	max_error_power = max_error_pow
+	max_error_power = -precision
 	max_space_error = pow(10, max_error_power)
 	max_speed = (1.0 - max_space_error) * light_speed
 	max_sim_dist = pow(10, NUM_DIGITS - precision_digits)
 		## The maximum distance along any given coordinate axis in the simulation
 	max_axis_dist = max_sim_dist / sqrt(3.0)
 
-func set_scales(space_u, time_u, mass_u) -> void:
+func set_scales(space_u, time_u, mass_u, charge_u) -> void:
 	space_unit = space_u
 	time_unit = time_u
 	mass_unit = mass_u
+	charge_unit = charge_u
 	_set_fund_consts()
 
 func _set_fund_consts() -> void:
 	grav_const = GRAV_CONST_SI * (SPACE_SCALES[space_unit] ** -3.0) * \
 		MASS_SCALES[mass_unit] * (TIME_SCALES[time_unit] ** 2.0)
+	coulomb_const = COULOMB_CONST_SI * (MASS_SCALES[mass_unit] ** -1.0) * \
+			(SPACE_SCALES[space_unit] ** -3.0) * \
+			(CHARGE_SCALES[charge_unit] ** 2.0) * \
+			(TIME_SCALES[time_unit] ** 2.0)
 	light_speed = LIGHT_SPEED_SI * \
 		(TIME_SCALES[time_unit] / SPACE_SCALES[space_unit])
 	max_speed = (1.0 - max_space_error) * light_speed

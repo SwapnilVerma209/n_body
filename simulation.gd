@@ -10,40 +10,43 @@ var coord_time := 0.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Set precision and units here
-	Global.set_precision(3, -3)
-	Global.set_scales("light_year", "megayear", "solar_mass")
+	Global.set_precision(5, -5)
+	Global.set_scales("kilometer", "second", "kilogram")
 	
 	# Add your bodies here
-	var mass := Global.MASS_SCALES["milky_way_mass"] / \
-			Global.MASS_SCALES["solar_mass"] / 200.0
-	var spawn_radius := 4e6
-	
-	for i in range(150):
-		var distance := spawn_radius * randf_range(0.0, 1.0)
-		_add_body("Dark matter cloud %d" % i, \
-				mass, "solar_mass", \
-				100000.0, "light_year",
-				distance * Vector3( \
-						randf_range(-1.0, 1.0), \
-						randf_range(-1.0, 1.0), \
-						randf_range(-1.0, 1.0)
-				).normalized(), "light_year", \
-				Vector3(), "light_year", "millenia", \
-				Vector3(32.0, 32.0, 32.0), \
+	var black_hole = _add_body("Black hole", \
+			8.0, "solar_mass", \
+			0.0, "kilometer", \
+			Vector3(), "kilometer",
+			Vector3(), "kilometer", "second", \
+			Vector3(), \
+			true)
+	var schwarz_radius := black_hole.get_schwarz_radius()
+	var rads := 1.5
+	var distance := rads * schwarz_radius
+	var position := distance * Vector3(1.0, 0.0, 0.0)
+	var speed := 1.1 * black_hole.get_rest_orbit_speed(distance)
+	var velocity := speed * Vector3(0.0, 1.0, 0.0)
+	_add_body("1.5", \
+			0.001, "kilogram", \
+			5.0, "kilometer", \
+			position, "kilometer",
+			velocity, "kilometer", "second", \
+			Vector3(255.0, 255.0, 255.0), \
+			false)
+	for i in range(9):
+		rads = 2.0 + i * 1.0
+		distance = rads * schwarz_radius
+		position = distance * Vector3(1.0, 0.0, 0.0)
+		speed = 1.1 * black_hole.get_rest_orbit_speed(distance)
+		velocity = speed * Vector3(0.0, 1.0, 0.0)
+		_add_body("%.1f" % rads, \
+				0.001, "kilogram", \
+				5.0, "kilometer", \
+				position, "kilometer",
+				velocity, "kilometer", "second", \
+				Vector3(255.0, 255.0, 255.0), \
 				false)
-	for i in range(50):
-		var distance := spawn_radius * randf_range(0.0, 1.0)
-		_add_body("Baryonic clump %d" % i, \
-				mass, "solar_mass", \
-				1000, "light_year", \
-				distance * Vector3( \
-						randf_range(-1.0, 1.0), \
-						randf_range(-1.0, 1.0), \
-						randf_range(-1.0, 1.0)
-				).normalized(), "light_year", \
-				Vector3(), "light_year", "millenia", \
-				Vector3(255.0, 255.0, 0.0), \
-				true)
 	
 	# Do not modify
 	var furthest_dist := _calc_furthest_dist()

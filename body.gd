@@ -4,10 +4,12 @@ extends MeshInstance3D
 static var body_scene := preload("res://body.tscn")
 static var body_shader := preload("res://body.gdshader")
 
-@export var name_text: String
 @export var mass: float
+@export var charge: float
 @export var rest_radius: float
 @export var coord_velocity: Vector3
+var em_field_mass: float
+var coord_net_force: Vector3
 var proper_time: float
 var _coord_lorentz_recip: float
 var _length_contract_matrix: Basis
@@ -23,37 +25,32 @@ var is_collidable: bool
 
 ## Creates a new body with a given mass, radius, position, and velocity based on
 ## the scaled units. Initial values assume no gravitational influences
-static func new_body(name_text: String, mass: float, \
+static func new_body(name_text: String, mass: float, charge: float, \
 		radius: float, position: Vector3, coord_velocity: Vector3, \
 				color: Vector3=Vector3(255.0, 255.0, 255.0), \
 				is_collidable: bool = true) -> Body:
 	var body := body_scene.instantiate()
-	body.name_text = name_text
 	var label_node := body.get_node("Label")
 	label_node.set_text(name_text)
 	label_node.set_billboard_mode(BaseMaterial3D.BILLBOARD_ENABLED)
 	label_node.set_draw_flag(Label3D.FLAG_FIXED_SIZE, true)
 	label_node.set_pixel_size(0.001)
 	body.mass = mass
+	body.charge = charge
 	body.rest_radius = radius
-	var schwarz_radius = body.get_schwarz_radius()
-	body.is_black_hole = radius <= schwarz_radius
-	if body.is_black_hole:
-		radius = schwarz_radius
-		body.rest_radius = radius
-		color = Vector3(0.0, 0.0, 0.0)
-		body.is_collidable = true
 	body.mesh = SphereMesh.new()
 	body.mesh.radial_segments = 8
 	body.mesh.rings = 4
 	body.set_display_radius(radius)
 	body.mesh.material = ShaderMaterial.new()
 	body.mesh.material.shader = body_shader.duplicate()
-	body.mesh.material.set_shader_parameter("color", color)
+	body._set_color(color)
+	body._try_to_turn_into_black_hole()
 	body.position = position
 	body.coord_velocity = coord_velocity
 	if coord_velocity.length() > Global.max_speed:
 		body.coord_velocity = coord_velocity.normalized() * Global.max_speed
+	body.coord_net_force = Vector3()
 	body.proper_time = 0.0
 	body.should_be_deleted = false
 	body.reset()
@@ -82,8 +79,7 @@ func set_display_radius(radius: float) -> void:
 		return
 	mesh.set_radius(radius)
 	mesh.set_height(2.0 * radius)
-	get_node("Label").position = Vector3(0.0, radius, \
-				0.0) * 1.1
+	get_node("Label").position = Vector3(0.0, radius, 0.0) * 1.1
 
 ## Adds the contribution to the gravitational field and potential by the other 
 ## body
@@ -129,6 +125,13 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	else:
 		potential = -field.length() * distance
 	return [field, potential]
+
+func add_electromagnetic_force(other: Body) -> void:
+	var force := other.lorentz_force_at(position)
+	coord_net_force += force
+	other.coord_net_force -= force
+
+#
 
 ## Calibrates the body based on length contraction, escape velocity, and
 ## infalling velocity. To be called after all gravitational fields and potentials
@@ -247,45 +250,18 @@ func absorb(other) -> void:
 		new_name_text = other.name_text
 	var new_mass = mass + other.mass
 	var new_position := get_center_of_mass_with(other)
-	var new_coord_momentum = get_coord_momentum() + other.get_coord_momentum()
-	var new_coord_momentum_mag = new_coord_momentum.length()
-	var new_coord_speed = new_coord_momentum_mag / \
-			sqrt(new_mass**2.0 + (new_coord_momentum_mag / Global.light_speed)**2.0)
-	if new_coord_speed > Global.max_speed:
-		new_coord_speed = Global.max_speed
-	var new_coord_velocity = new_coord_speed * new_coord_momentum.normalized()
-	var new_rest_radius: float
-	var schwarz_radius := get_schwarz_radius()
-	var other_schwarz_radius = other.get_schwarz_radius()
-	var sum_schwarz_radius = schwarz_radius + other_schwarz_radius
-	var old_color = mesh.material.get_shader_parameter("color")
-	var other_old_color = other.mesh.material.get_shader_parameter("color")
-	var new_color : Vector3
-	if is_black_hole || other.is_black_hole:
-		new_rest_radius = sum_schwarz_radius
-		is_black_hole = true
-		is_collidable = true
-		new_color = Vector3(0.0, 0.0, 0.0)
-	else:
-		var radius_cubed := rest_radius ** 3.0
-		var other_radius_cubed = other.rest_radius ** 3.0
-		var radii_cubed_sum = radius_cubed + other_radius_cubed
-		new_rest_radius = radii_cubed_sum ** (1.0 / 3.0)
-		new_color = (radius_cubed * old_color + other_radius_cubed * \
-				other_old_color) / radii_cubed_sum
-	name_text = new_name_text
-	get_node("Label").set_text(name_text)
+	var new_coord_velocity := get_center_of_momentum_velocity(other)
+	var new_color_and_radius = _combine_colors_and_volume(other)
+	var new_color = new_color_and_radius[0]
+	var new_rest_radius = new_color_and_radius[1]
+	_set_name_text(new_name_text)
 	mass = new_mass
 	position = new_position
 	coord_velocity = new_coord_velocity
 	rest_radius = new_rest_radius
-	if rest_radius < sum_schwarz_radius:
-		rest_radius = sum_schwarz_radius
-		is_black_hole = true
-		is_collidable = true
-		new_color = Vector3(0.0, 0.0, 0.0)
-	mesh.material.set_shader_parameter("color", new_color)
+	_set_color(new_color)
 	set_display_radius(rest_radius)
+	_try_to_turn_into_black_hole()
 	other.should_be_deleted = true
 
 ## Returns the relativistic mass of the body based on the infalling frame
@@ -305,6 +281,19 @@ func get_center_of_mass_with(other) -> Vector3:
 func get_coord_momentum() -> Vector3:
 	return mass * coord_velocity / _coord_lorentz_recip
 
+## Caclulates the velocity of the center of momentum frame between this and
+## another body
+func get_center_of_momentum_velocity(other) -> Vector3:
+	var total_momentum = get_coord_momentum() + other.get_coord_momentum()
+	var total_momentum_mag = total_momentum.length()
+	var total_mass = mass + other.mass
+	var speed = total_momentum_mag / \
+			sqrt(total_mass**2.0 + (total_momentum_mag / Global.light_speed)** \
+			2.0)
+	if speed > Global.max_speed:
+		speed = Global.max_speed
+	return speed * total_momentum.normalized()
+
 ## Recalculates length contraction for the new velocity, and resets fields,
 ## potentials, related values, and flags
 func reset() -> void:
@@ -315,6 +304,68 @@ func reset() -> void:
 	_esc_lorentz_recip = 1.0
 	_infalling_vel = coord_velocity
 	_infall_lorentz_recip = _coord_lorentz_recip
+
+## Caclulates the effective mass of the electromagnetic field.
+func _calc_em_field_mass() -> void:
+	em_field_mass = 0.0
+	if is_zero_approx(charge):
+		return
+	if is_black_hole:
+		em_field_mass = (Global.coulomb_const * (charge ** 2)) / \
+				(4.0 * Global.grav_const * mass)
+		return
+	var bound_step := rest_radius / 5.0
+	var prev_bound_value := 0.0
+	for i in range(1, 5):
+		var bound_value := bound_step * i
+		var bound_height := (prev_bound_value + bound_value) / 2.0
+		var dist_step := bound_value / 5.0
+		var dist_integral := 0.0
+		var prev_dist_value := 0.0
+		for j in range(1, 5):
+			var dist_value := dist_step * j
+
+func _calc_interal_time_factor(dist: float):
+	if dist > rest_radius:
+		return 1.0
+	return sqrt(1.0 - ((Global.grav_const * mass) / \
+			(rest_radius * Global.light_speed**2.0)) * \
+			(3.0 - (dist / rest_radius)**2.0))
+
+## Gets the color of the body
+func _get_color() -> Vector3:
+	return mesh.material.get_shader_parameter("color")
+
+## Sets the color of the body.
+func _set_color(color : Vector3) -> void:
+	mesh.material.set_shader_parameter("color", color)
+
+## Calculates the new color and radius if this body were to merge with other.
+func _combine_colors_and_volume(other) -> Array:
+	var color = _get_color()
+	var other_color = other._get_color()
+	var radius_cubed := rest_radius ** 3.0
+	var other_radius_cubed = other.rest_radius ** 3.0
+	var radii_cubed_sum = radius_cubed + other_radius_cubed
+	var new_rest_radius = radii_cubed_sum ** (1.0 / 3.0)
+	var new_color = (radius_cubed * color + other_radius_cubed * other_color) \
+			/ radii_cubed_sum
+	return [new_color, new_rest_radius]
+
+## Sets the label text
+func _set_name_text(name_text: String) -> void:
+	get_node("Label").set_text(name_text)
+
+## Collpses the body into a black hole if its current radius is less than or
+## equal to the Schwarzschild radius.
+func _try_to_turn_into_black_hole() -> void:
+	var schwarz_radius = get_schwarz_radius()
+	is_black_hole = (radius <= 1.5 * schwarz_radius)
+	if is_black_hole:
+		rest_radius = schwarz_radius
+		set_display_radius(rest_radius)
+		_set_color(Vector3())
+		is_collidable = true
 
 ## Calculates the length contraction factors and saves the coordinate lorentz
 ## factor for gravitational field calculation
