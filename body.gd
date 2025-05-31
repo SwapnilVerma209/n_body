@@ -10,6 +10,7 @@ static var body_shader := preload("res://body.gdshader")
 @export var coord_velocity: Vector3
 var em_field_mass: float
 var coord_net_force: Vector3
+var proper_acceleration: Vector3
 var proper_time: float
 var _coord_lorentz_recip: float
 var _length_contract_matrix: Basis
@@ -45,6 +46,7 @@ static func new_body(name_text: String, mass: float, charge: float, \
 	body.mesh.material = ShaderMaterial.new()
 	body.mesh.material.shader = body_shader.duplicate()
 	body._set_color(color)
+	body._calc_em_field_mass()
 	body._try_to_turn_into_black_hole()
 	body.position = position
 	body.coord_velocity = coord_velocity
@@ -56,16 +58,26 @@ static func new_body(name_text: String, mass: float, charge: float, \
 	body.reset()
 	return body
 
+## Returns the total mass of the body, including the mass of its field energy.
+func get_total_mass() -> float:
+	return mass + em_field_mass
+
+## Returns the radius of a black hole that has the same mass and electric charge
+## as this body.
+func get_black_hole_radius() -> float:
+	return (2.0 * Global.grav_const * get_total_mass()) / \
+			(Global.light_speed ** 2.0)
+
 ## Returns the Schwarzschild radius of this body; the radius of a Schwarzschild
 ## black hole of this mass
 func get_schwarz_radius() -> float:
-	return 2.0 * Global.grav_const * mass / (Global.light_speed ** 2.0)
+	return (2.0 * Global.grav_const * mass) / (Global.light_speed ** 2.0)
 
 ## Returns the speed required for a circular orbit in the rest frame of this
-## body
-func get_rest_orbit_speed(distance: float) -> float:
-	return sqrt(Global.grav_const * mass / \
-			(distance - get_schwarz_radius()))
+## body (gravity only)
+func get_grav_rest_orbit_speed(distance: float) -> float:
+	return sqrt(Global.grav_const * get_total_mass() / \
+			(distance - get_black_hole_radius()))
 
 ## Sets the radius and height of the mesh to reflect the size of the radius. If
 ## is below a minimum display size, then it is set to that minimum size. The
@@ -102,36 +114,56 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	var is_inside := distance < radius_towards
 	var field: Vector3
 	if is_inside:
-		field = (-Global.grav_const * mass * rad_ratio / (rest_radius ** 2)) * \
-				vector_to_other.normalized()
+		field = (-Global.grav_const * get_total_mass() * rad_ratio / \
+				(rest_radius**2.0)) * vector_to_other.normalized()
 	else:
-		field = (-Global.grav_const * mass / (distance**3.0)) * vector_to_other
+		field = (-Global.grav_const * get_total_mass() / \
+				(distance**3.0)) * vector_to_other
 	if !coord_velocity.is_zero_approx():
 		var field_parallel = field.project(coord_velocity)
 		var field_orthogonal = field - field_parallel
-		field = field_parallel + (field_orthogonal / _coord_lorentz_recip)
+		field = field_parallel * _coord_lorentz_recip + field_orthogonal
 	var potential: float
 	if is_inside:
-		var surface_field = (-Global.grav_const * mass / (rest_radius ** 2)) * \
-				vector_to_other.normalized()
+		var surface_field = (-Global.grav_const * get_total_mass() / \
+				(rest_radius ** 2)) * vector_to_other.normalized()
 		if !coord_velocity.is_zero_approx():
 			var surface_field_par = surface_field.project(coord_velocity)
 			var surface_field_orth = surface_field - surface_field_par
-			surface_field = surface_field_par + surface_field_orth / \
-					_coord_lorentz_recip
+			surface_field = surface_field_par * _coord_lorentz_recip + \
+					surface_field_orth
 		potential = -surface_field.length() * radius_towards - \
-				(field.length() * (radius_towards**2 - distance**2) / \
+				(field.length() * (radius_towards**2.0 - distance**2.0) / \
 				(2.0 * distance))
 	else:
 		potential = -field.length() * distance
 	return [field, potential]
 
-func add_electromagnetic_force(other: Body) -> void:
-	var force := other.lorentz_force_at(position)
+## Adds the effect of the other body's electromagnetic field to this body.
+func add_electromagnetic_force(other) -> void:
+	var field = other.electromagnetic_field_at(position)
+	var force = field * charge
 	coord_net_force += force
-	other.coord_net_force -= force
 
-#
+## Calculates the electromagnetic field by this body at the given position.
+func electromagnetic_field_at(other_position: Vector3) -> Vector3:
+	var vector_to_other := other_position - position
+	var distance := vector_to_other.length()
+	var radius_towards := get_radius_towards(other_position)
+	var rad_ratio := distance / radius_towards
+	var is_inside := distance < radius_towards
+	var field: Vector3
+	if is_inside:
+		field = (Global.coulomb_const * charge * rad_ratio / \
+				(rest_radius ** 2)) * vector_to_other.normalized()
+	else:
+		field = (Global.coulomb_const * charge / \
+				(distance**3.0)) * vector_to_other
+	if !coord_velocity.is_zero_approx():
+		var field_parallel = field.project(coord_velocity)
+		var field_orthogonal = field - field_parallel
+		field = field_parallel * _coord_lorentz_recip + field_orthogonal
+	return field
 
 ## Calibrates the body based on length contraction, escape velocity, and
 ## infalling velocity. To be called after all gravitational fields and potentials
@@ -143,9 +175,16 @@ func calibrate() -> void:
 ## Resets the fields and potentials calculated for this body. This should be
 ## called when the body needs to recalibrate
 func reset_fields_and_potentials() -> void:
-	_newton_grav_field = Vector3(0.0, 0.0, 0.0)
+	_newton_grav_field = Vector3()
 	_newton_grav_potential = 0.0
-	_escape_velocity = Vector3(0.0, 0.0, 0.0)
+	_escape_velocity = Vector3()
+	coord_net_force = Vector3()
+	proper_acceleration = Vector3()
+
+## Calculates the proper acceleration. To be called after all forces are
+## calculated
+func calc_proper_acceleration():
+	proper_acceleration = coord_net_force / get_total_mass()
 
 ## Calculates a timestep for this and another body. A max timestep 
 func calc_timestep(other) -> Array:
@@ -166,8 +205,9 @@ func calc_timestep(other) -> Array:
 	else:
 		slow_speed = other_speed
 		fast_speed = speed
-	var accel_mag = _newton_grav_field.length()
-	var other_accel_mag = other._newton_grav_field.length()
+	var accel_mag = _newton_grav_field.length() + proper_acceleration.length()
+	var other_accel_mag = other._newton_grav_field.length() + \
+			other.proper_acceleration.length()
 	var low_accel_mag: float
 	var high_accel_mag: float
 	if accel_mag <= other_accel_mag:
@@ -206,7 +246,10 @@ func calc_timestep(other) -> Array:
 
 ## Move the body to its new position, and calculate its new velocity
 func move(coord_timestep: float) -> void:
-	position += coord_velocity * coord_timestep * _esc_lorentz_recip
+	var grav_timestep := coord_timestep * _esc_lorentz_recip
+	position += coord_velocity * grav_timestep
+	coord_velocity = Global.relativistic_vel_add(coord_velocity, \
+			proper_acceleration * grav_timestep)
 	coord_velocity = Global.relativistic_vel_add( \
 			_newton_grav_field / (_esc_lorentz_recip**2.0) * coord_timestep, \
 			coord_velocity)
@@ -245,10 +288,11 @@ func is_colliding_with(other) -> bool:
 ## of mass, and marks the other body for deletion. Also turns the body into a
 ## black hole if the conditions are met. To be used during collisions
 func absorb(other) -> void:
-	var new_name_text := name_text
+	var new_name_text = get_node("Label").text
 	if mass < other.mass:
 		new_name_text = other.name_text
 	var new_mass = mass + other.mass
+	var new_charge = charge + other.charge
 	var new_position := get_center_of_mass_with(other)
 	var new_coord_velocity := get_center_of_momentum_velocity(other)
 	var new_color_and_radius = _combine_colors_and_volume(other)
@@ -256,17 +300,19 @@ func absorb(other) -> void:
 	var new_rest_radius = new_color_and_radius[1]
 	_set_name_text(new_name_text)
 	mass = new_mass
+	charge = new_charge
 	position = new_position
 	coord_velocity = new_coord_velocity
 	rest_radius = new_rest_radius
+	_calc_em_field_mass()
 	_set_color(new_color)
 	set_display_radius(rest_radius)
 	_try_to_turn_into_black_hole()
 	other.should_be_deleted = true
 
-## Returns the relativistic mass of the body based on the infalling frame
+## Returns the relativistic mass of the body based on the coordinate frame
 func get_relativistic_mass() -> float:
-	return mass / _infall_lorentz_recip
+	return mass / _coord_lorentz_recip
 
 ## Calculates the center of mass between this body and another one, based on
 ## their relativistic masses
@@ -298,9 +344,7 @@ func get_center_of_momentum_velocity(other) -> Vector3:
 ## potentials, related values, and flags
 func reset() -> void:
 	_calc_length_contraction()
-	_newton_grav_field = Vector3(0.0, 0.0, 0.0)
-	_newton_grav_potential = 0.0
-	_escape_velocity = Vector3(0.0, 0.0, 0.0)
+	reset_fields_and_potentials()
 	_esc_lorentz_recip = 1.0
 	_infalling_vel = coord_velocity
 	_infall_lorentz_recip = _coord_lorentz_recip
@@ -311,26 +355,11 @@ func _calc_em_field_mass() -> void:
 	if is_zero_approx(charge):
 		return
 	if is_black_hole:
-		em_field_mass = (Global.coulomb_const * (charge ** 2)) / \
+		em_field_mass = (Global.coulomb_const * charge**2.0) / \
 				(4.0 * Global.grav_const * mass)
 		return
-	var bound_step := rest_radius / 5.0
-	var prev_bound_value := 0.0
-	for i in range(1, 5):
-		var bound_value := bound_step * i
-		var bound_height := (prev_bound_value + bound_value) / 2.0
-		var dist_step := bound_value / 5.0
-		var dist_integral := 0.0
-		var prev_dist_value := 0.0
-		for j in range(1, 5):
-			var dist_value := dist_step * j
-
-func _calc_interal_time_factor(dist: float):
-	if dist > rest_radius:
-		return 1.0
-	return sqrt(1.0 - ((Global.grav_const * mass) / \
-			(rest_radius * Global.light_speed**2.0)) * \
-			(3.0 - (dist / rest_radius)**2.0))
+	em_field_mass = (3.0 * Global.coulomb_const * charge**2.0) / \
+			(5.0 * rest_radius * Global.light_speed**2.0)
 
 ## Gets the color of the body
 func _get_color() -> Vector3:
@@ -357,12 +386,14 @@ func _set_name_text(name_text: String) -> void:
 	get_node("Label").set_text(name_text)
 
 ## Collpses the body into a black hole if its current radius is less than or
-## equal to the Schwarzschild radius.
+## equal to the black hole radius.
 func _try_to_turn_into_black_hole() -> void:
-	var schwarz_radius = get_schwarz_radius()
-	is_black_hole = (radius <= 1.5 * schwarz_radius)
+	var black_hole_radius = get_black_hole_radius()
+	is_black_hole = (rest_radius <= 1.5 * black_hole_radius)
+	_calc_em_field_mass()
+	black_hole_radius = get_black_hole_radius()
 	if is_black_hole:
-		rest_radius = schwarz_radius
+		rest_radius = black_hole_radius
 		set_display_radius(rest_radius)
 		_set_color(Vector3())
 		is_collidable = true
@@ -390,7 +421,7 @@ func _calc_length_contraction() -> void:
 ## set to zero. This is to prevent infinities at the event horizons of black
 ## holes.
 func _calc_esc_velocity() -> void:
-	var escape_speed := sqrt(-2.0 * _newton_grav_potential)
+	var escape_speed := sqrt(2.0 * abs(_newton_grav_potential))
 	if _newton_grav_field.is_zero_approx():
 		if coord_velocity.is_zero_approx():
 			_escape_velocity = escape_speed * Vector3(-1.0, 0.0, 0.0)
@@ -412,7 +443,7 @@ func _calc_infalling_vel() -> void:
 
 ## Returns information of the body in the form of a string
 func _to_string() -> String:
-	return ("Name = %s\n" % name_text) + \
+	return ("Name = %s\n" % get_node("Label").text) + \
 			("Mass = %f\n" % mass) + \
 			("Radius = %f\n" % rest_radius) + \
 			("Position = <%f, %f, %f> (%f)\n" % [position.x, \
