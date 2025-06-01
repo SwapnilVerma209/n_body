@@ -24,12 +24,12 @@ var is_black_hole: bool
 var should_be_deleted: bool
 var is_collidable: bool
 
-## Creates a new body with a given mass, radius, position, and velocity based on
-## the scaled units. Initial values assume no gravitational influences
+## Creates a new body with a given mass, charge, radius, position, and velocity 
+## based on the scaled units.
 static func new_body(name_text: String, mass: float, charge: float, \
 		radius: float, position: Vector3, coord_velocity: Vector3, \
-				color: Vector3=Vector3(255.0, 255.0, 255.0), \
-				is_collidable: bool = true) -> Body:
+		color: Vector3=Vector3(255.0, 255.0, 255.0), \
+		is_collidable: bool = true) -> Body:
 	var body := body_scene.instantiate()
 	var label_node := body.get_node("Label")
 	label_node.set_text(name_text)
@@ -71,7 +71,7 @@ func get_black_hole_radius() -> float:
 			(Global.light_speed ** 2.0)
 
 ## Returns the Schwarzschild radius of this body; the radius of a Schwarzschild
-## black hole of this mass
+## black hole of this mass.
 func get_schwarz_radius() -> float:
 	return (2.0 * Global.grav_const * mass) / (Global.light_speed ** 2.0)
 
@@ -99,7 +99,7 @@ func set_display_radius(radius: float) -> void:
 	get_node("Label").position = Vector3(0.0, radius, 0.0) * 1.1
 
 ## Adds the contribution to the gravitational field and potential by the other 
-## body
+## body.
 func add_newton_grav_field_and_potential(other) -> void:
 	var field_and_potential = other.newton_grav_field_and_potential_at(position)
 	var field = field_and_potential[0]
@@ -110,7 +110,7 @@ func add_newton_grav_field_and_potential(other) -> void:
 ## Calculates and returns the gravitational field and potential caused by this
 ## body at other_postion. The values are expressed as those in the rest frame of
 ## an observer at other_position and at rest relative to the coordinate origin,
-## based on the scaled units
+## based on the scaled units.
 func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	var total_mass := get_total_mass()
 	if is_zero_approx(total_mass):
@@ -183,8 +183,8 @@ func calibrate() -> void:
 	_calc_esc_velocity()
 	_calc_infalling_vel()
 
-## Resets the fields and potentials calculated for this body. This should be
-## called when the body needs to recalibrate
+## Resets the fields and potentials calculated for this body, as well as the net
+## force and acceleration. Should be called at the end of the simulation loop.
 func reset_fields_and_potentials() -> void:
 	_newton_grav_field = Vector3()
 	_newton_grav_potential = 0.0
@@ -193,12 +193,15 @@ func reset_fields_and_potentials() -> void:
 	coord_acceleration = Vector3()
 
 ## Calculates the coordinate acceleration. To be called after all forces are
-## calculated
+## calculated.
 func calc_coord_acceleration():
 	coord_acceleration = coord_net_force / get_total_mass()
 
-## Calculates a timestep for this and another body. A max timestep 
-func calc_timestep(other) -> Array:
+## Calculates a lower and upper bound for the timestep for these two bodies.
+## The simulation will try to make the timestep as large as possible without
+## exceeding the maximum timestep for any two bodies. This is to balance
+## simulation speed and precision. 
+func calc_timestep_bounds(other) -> Array:
 	var distance = (other.position - position).length()
 	var min_dist = Global.max_space_error * distance
 	var max_dist = min_dist * 10.0
@@ -262,7 +265,8 @@ func calc_timestep(other) -> Array:
 		min_timestep = Global.DEFAULT_TIMESTEP
 	return [min_timestep, max_timestep]
 
-## Move the body to its new position, and calculate its new velocity
+## Move the body to its new position, and calculate its new velocity. Increment
+## its proper time.
 func move(coord_timestep: float) -> void:
 	var grav_timestep := coord_timestep * _esc_lorentz_recip
 	position += coord_velocity * grav_timestep
@@ -276,7 +280,7 @@ func move(coord_timestep: float) -> void:
 			coord_velocity)
 	proper_time += coord_timestep * _infall_lorentz_recip
 
-## Calculates the radius in the direction of the given position
+## Calculates the radius in the direction of the given position.
 func get_radius_towards(other_position: Vector3) -> float:
 	if coord_velocity.is_zero_approx():
 		return rest_radius
@@ -295,7 +299,7 @@ func get_radius_towards(other_position: Vector3) -> float:
 			_coord_lorentz_recip
 	return radius_vector.length()
 
-## Returns true if this body is colliding with the other body, false otherwise
+## Returns true if this body is colliding with the other body, false otherwise.
 func is_colliding_with(other) -> bool:
 	if (!is_collidable and !other.is_black_hole) or \
 			(!is_black_hole and !other.is_collidable):
@@ -307,7 +311,7 @@ func is_colliding_with(other) -> bool:
 
 ## Adds the volume, mass, and momentum of another body, moves it to their center
 ## of mass, and marks the other body for deletion. Also turns the body into a
-## black hole if the conditions are met. To be used during collisions
+## black hole if the conditions are met. To be used during collisions.
 func absorb(other) -> void:
 	var new_name_text = get_node("Label").text
 	if mass < other.mass:
@@ -333,12 +337,12 @@ func absorb(other) -> void:
 	_try_to_turn_into_black_hole()
 	other.should_be_deleted = true
 
-## Returns the relativistic mass of the body based on the coordinate frame
+## Returns the relativistic mass of the body based on the coordinate frame.
 func get_relativistic_mass() -> float:
 	return get_total_mass() / _coord_lorentz_recip
 
 ## Calculates the center of mass between this body and another one, based on
-## their relativistic masses
+## their relativistic masses.
 func get_center_of_mass_with(other) -> Vector3:
 	var self_rel_mass := get_relativistic_mass()
 	var other_rel_mass = other.get_relativistic_mass()
@@ -346,12 +350,12 @@ func get_center_of_mass_with(other) -> Vector3:
 	return (self_rel_mass * position + other_rel_mass * other.position) / \
 			total_rel_mass
 
-## Calculates the relativistic momentum in the coordinate frame
+## Calculates the relativistic momentum in the coordinate frame.
 func get_coord_momentum() -> Vector3:
 	return get_total_mass() * coord_velocity / _coord_lorentz_recip
 
 ## Caclulates the velocity of the center of momentum frame between this and
-## another body
+## another body.
 func get_center_of_momentum_velocity(other) -> Vector3:
 	var total_momentum = get_coord_momentum() + other.get_coord_momentum()
 	var total_momentum_mag = total_momentum.length()
@@ -422,7 +426,7 @@ func _try_to_turn_into_black_hole() -> void:
 		is_collidable = true
 
 ## Calculates the length contraction factors and saves the coordinate lorentz
-## factor for gravitational field calculation
+## factor for gravitational field calculation.
 func _calc_length_contraction() -> void:
 	_coord_lorentz_recip = Global.lorentz_fact_recip(coord_velocity)
 	_length_contract_matrix = Basis.IDENTITY
@@ -458,7 +462,8 @@ func _calc_esc_velocity() -> void:
 	_esc_lorentz_recip = Global.lorentz_fact_recip(_escape_velocity)
 
 ## Calculates the velocity of the body in the frame of reference of an observer
-## falling at the escape speed towards the body at the location. Saves this 
+## falling at the escape speed towards the body at the location. Used for the
+## proper time increment.
 func _calc_infalling_vel() -> void:
 	_infalling_vel = Global.relativistic_vel_add(-_escape_velocity, \
 			coord_velocity)

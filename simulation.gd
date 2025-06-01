@@ -10,8 +10,8 @@ var coord_time := 0.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Set precision and units here
-	Global.set_precision(5, -5)
-	Global.set_scales("kilometer", "second", "kilogram")
+	Global.set_precision(5)
+	Global.set_scales("kilometer", "second", "kilogram", "coulomb")
 	
 	# Add your bodies here
 	var black_hole = _add_body("Black hole", \
