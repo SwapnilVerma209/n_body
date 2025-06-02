@@ -75,6 +75,18 @@ func get_black_hole_radius() -> float:
 func get_schwarz_radius() -> float:
 	return (2.0 * Global.grav_const * mass) / (Global.light_speed ** 2.0)
 
+func get_rest_orbit_speed(other) -> float:
+	var distance = (other.position - position).length()
+	if is_zero_approx(charge):
+		return get_grav_rest_orbit_speed(distance)
+	var total_mass = get_total_mass()
+	var accel_times_dist = (Global.grav_const * total_mass) / (distance - get_black_hole_radius()) \
+			- (Global.coulomb_const * charge * other.charge) / \
+			(distance**2.0 * other.get_total_mass())
+	if accel_times_dist <= 0.0:
+		return 0.0
+	return sqrt(accel_times_dist)
+
 ## Returns the speed required for a circular orbit in the rest frame of this
 ## body (gravity only)
 func get_grav_rest_orbit_speed(distance: float) -> float:
@@ -276,7 +288,7 @@ func move(coord_timestep: float) -> void:
 	else:
 		coord_velocity = Global.max_speed * coord_net_force.normalized()
 	coord_velocity = Global.relativistic_vel_add( \
-			_newton_grav_field / (_esc_lorentz_recip**2.0) * coord_timestep, \
+			_newton_grav_field / _esc_lorentz_recip * coord_timestep, \
 			coord_velocity)
 	proper_time += coord_timestep * _infall_lorentz_recip
 

@@ -92,6 +92,10 @@ var light_speed = LIGHT_SPEED_SI
 var max_speed = (1.0 - max_space_error) * light_speed
 
 func set_precision(precision: int) -> void:
+	if precision < 0:
+		precision = 0
+	elif precision > NUM_DIGITS:
+		precision = NUM_DIGITS
 	precision_digits = precision
 	max_error_power = -precision
 	max_space_error = pow(10, max_error_power)
