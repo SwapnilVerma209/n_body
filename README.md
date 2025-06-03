@@ -3,12 +3,7 @@ This is a n-body simulation made with the [Godot](https://godotengine.org/)
 game engine. This simulation accounts for special relativistic and some
 general relativistic effects. This simulation includes gravitational and
 electromagnetic interactions between non-rotating spheres of uniform mass
-density and uniform charge density. This simulation is currently a direct
-n-body, but I have plans in the future to optimize this using the Barnes-Hutt
-algorithm. In the future, I may include rotational mechanics. As for the effects
-of rotation on the gravitational and electromagnetic fields, I may not include
-that, considering the complexity. I also have plans to make this simulation
-more user-friendly, with a proper UI. Please let me know if you find any bugs!
+density and uniform charge density. Please let me know if you find any bugs!
 
 ## How to Use
 For now, there is no UI for creating simulations. You need to modify the code
@@ -20,7 +15,7 @@ go into the file simulation.gd and the function _ready().
 
 To modify the simulation's spaital precision, modify the call:
 ```
-Global.set_precision(3)
+Global.set_precision(6)
 ```
 Double precision floats have 15 digits of reliable precision. The first argument
 determines how many of these digits are on the right of the decimal point in
@@ -66,22 +61,29 @@ holding the movement keys. This is to allow both slow, precise movements and
 fast movements. Will add mouse camera controls later.
 
 ### Controls
-W - Move forward
+- W - Move forward
+- A - Move left
+- S - Move backward
+- D - Move right
+- Space bar - Move up
+- Left shift - Move down
+- Up arrow - Look up
+- Left arrow - Look left
+- Down arrow - Look down
+- Right arrow - Look right
 
-A - Move left
-
-S - Move backward
-
-D - Move right
-
-Space bar - Move up
-
-Left shift - Move down
-
-Up arrow - Look up
-
-Left arrow - Look left
-
-Down arrow - Look down
-
-Right arrow - Look right
+## Future plans
+- Optimization of body interaction calculations using the Barnes-Hutt algorithm
+- (MAYBE) Rotational mechanics
+	- Since fast rotation has complex effects on gravitational and
+	electromagnetic fields, it may be outside the scope of this project.
+- (MAYBE) A very rough approximation of gravitational and electromagnetic waves
+	- Currently, changes to gravitational and electromagnetic fields propogate
+	instantaneously. I might implement the waves as circles spreading out at
+	the speed of light (not accounting for gravity). However this would be
+	complicated to pair with the Barnes-Hutt algorithm.
+- Saving and loading simulations in files
+- User-friendly UI
+	- Currently, creating your own simulations means not only modifying the
+	source code, but also compiling the Godot editor from scratch. I want this
+	to become something that anyone, regardless of technical skills, can use.
