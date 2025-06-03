@@ -76,14 +76,47 @@ func get_black_hole_radius() -> float:
 func get_schwarz_radius() -> float:
 	return (2.0 * Global.grav_const * mass) / (Global.light_speed ** 2.0)
 
+## Calculates a more precise value for the rest orbital speed. Should be
+## used if the orbital speed is expected to be comparable to light speed.
 func get_rest_orbit_speed(other) -> float:
+	var low := 0.0
+	var mid = get_approx_rest_orbit_speed(other)**2.0
+	var high = Global.light_speed**2.0
+	if is_equal_approx(mid, low) or mid > high:
+		mid = high * 0.5
+	var total_mass := get_total_mass()
+	var black_hole_radius := get_black_hole_radius()
+	var other_total_mass = other.get_total_mass()
+	var distance = (other.position - position).length()
+	var grav_accel_times_dist = (Global.grav_const * total_mass) / \
+				(distance - black_hole_radius)
+	var approx_em_accel_times_dist = \
+			-(Global.coulomb_const * charge * other.charge) / \
+			(distance * other_total_mass)
+	for i in range(49):
+		var accel_times_dist = grav_accel_times_dist + \
+				approx_em_accel_times_dist * \
+				sqrt(1.0 - (mid / Global.light_speed**2.0))
+		if is_equal_approx(mid, accel_times_dist):
+			return sqrt(mid)
+		elif accel_times_dist < mid:
+			high = mid
+		else:
+			low = mid
+		mid = (low + high) * 0.5
+	return sqrt(mid)
+
+## Calculates an approximate value for the rest orbital speed. Should be used
+## only if the orbital speed is expected to be much slower than light.
+func get_approx_rest_orbit_speed(other) -> float:
 	var distance = (other.position - position).length()
 	if is_zero_approx(charge):
 		return get_grav_rest_orbit_speed(distance)
 	var total_mass = get_total_mass()
-	var accel_times_dist = (Global.grav_const * total_mass) / (distance - get_black_hole_radius()) \
+	var accel_times_dist = (Global.grav_const * total_mass) / \
+			(distance - get_black_hole_radius()) \
 			- (Global.coulomb_const * charge * other.charge) / \
-			(distance**2.0 * other.get_total_mass())
+			(distance * other.get_total_mass())
 	if accel_times_dist <= 0.0:
 		return 0.0
 	return sqrt(accel_times_dist)

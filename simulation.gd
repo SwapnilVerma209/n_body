@@ -10,12 +10,12 @@ var coord_time := 0.0
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Set precision and units here
-	Global.set_precision(3)
-	Global.set_scales("proton_radius", "jiffy", "proton_mass", \
+	Global.set_precision(6)
+	Global.set_scales("proton_radius", "atomic_time", "proton_mass", \
 			"elementary_charge")
 	
 	# Add your bodies here
-	_add_body("Proton", \
+	var proton := _add_body("Proton", \
 			1.0, "proton_mass", \
 			1.0, "elementary_charge", \
 			1.0, "proton_radius", \
@@ -23,14 +23,17 @@ func _ready() -> void:
 			Vector3(), "nanometer", "nanosecond", \
 			Vector3(255.0, 0.0, 0.0), \
 			true)
-	_add_body("Electron", \
+	var electron := _add_body("Electron", \
 			1.0, "electron_mass", \
 			-1.0, "elementary_charge", \
 			1.0, "electron_radius", \
-			Vector3(10.0, 0.0, 0.0), "proton_radius", \
+			Vector3(1.0, 0.0, 0.0), "bohr_radius", \
 			Vector3(), "nanometer", "nanosecond", \
 			Vector3(255.0, 255.0, 0.0), \
 			true)
+	var speed := proton.get_rest_orbit_speed(electron)
+	electron.coord_velocity = speed * Vector3(0.0, 1.0, 0.0)
+	electron.reset()
 	
 	# Do not modify
 	var furthest_dist := _calc_furthest_dist()
