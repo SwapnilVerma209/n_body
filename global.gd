@@ -34,6 +34,10 @@ const SPACE_SCALES := {
 	"observable_universe_radius" : 4.4e26
 } # Space units expressed in m
 const TIME_SCALES := {
+	"attosecond": 1e-18,
+	"jiffy": 3e-24,
+	"atomic_time": 2.42e-17,
+	"femtosecond": 1e-15,
 	"nanosecond" : 1e-9,
 	"microsecond" : 1e-6,
 	"millisecond" : 0.001,
@@ -64,8 +68,8 @@ const MASS_SCALES := {
 	"observable_universe_mass" : 3.5e54
 } # Mass units expressed in kg
 const CHARGE_SCALES := {
-	"coulomb" : 1.0,
-	"elementary_charge" : 1.602176634e-19
+	"elementary_charge" : 1.602176634e-19,
+	"coulomb" : 1.0
 }
 
 var precision_digits := 3

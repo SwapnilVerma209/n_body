@@ -47,6 +47,7 @@ static func new_body(name_text: String, mass: float, charge: float, \
 	body.mesh.material.shader = body_shader.duplicate()
 	body._set_color(color)
 	body.em_field_mass = 0.0
+	body.is_collidable = is_collidable
 	body._try_to_turn_into_black_hole()
 	if !body.is_black_hole:
 		body._calc_em_field_mass()

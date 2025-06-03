@@ -11,40 +11,26 @@ var coord_time := 0.0
 func _ready() -> void:
 	# Set precision and units here
 	Global.set_precision(3)
-	Global.set_scales("kilometer", "millisecond", "kilogram", "coulomb")
+	Global.set_scales("proton_radius", "jiffy", "proton_mass", \
+			"elementary_charge")
 	
 	# Add your bodies here
-	var black_hole = _add_body("Black hole", \
-			8.0, "solar_mass", \
-			0.0, "coulomb", \
-			0.0, "kilometer", \
-			Vector3(), "kilometer",
-			Vector3(), "kilometer", "second", \
-			Vector3(), \
+	_add_body("Proton", \
+			1.0, "proton_mass", \
+			1.0, "elementary_charge", \
+			1.0, "proton_radius", \
+			Vector3(), "nanometer", \
+			Vector3(), "nanometer", "nanosecond", \
+			Vector3(255.0, 0.0, 0.0), \
 			true)
-	var schwarz_radius = black_hole.get_schwarz_radius()
-	for i in range (100):
-		var num_schwarz_rad := randf_range(1.1, 10.0)
-		var distance = schwarz_radius * num_schwarz_rad
-		var position = distance * Vector3( \
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0), \
-				0.0).normalized()
-		var speed = black_hole.get_grav_rest_orbit_speed(distance)
-		var rotation_matrix := Transform3D(\
-				Vector3(0.0, 1.0, 0.0), \
-				Vector3(-1.0, 0.0, 0.0), \
-				Vector3(0.0, 0.0, 1.0), \
-				Vector3())
-		var velocity = speed * (rotation_matrix * position).normalized()
-		_add_body("%.3f" % num_schwarz_rad, \
-				0.0, "kilogram", \
-				0.0, "coulomb", \
-				2.0, "kilometer", \
-				position, "kilometer",
-				velocity, "kilometer", "millisecond", \
-				Vector3(255.0, 255.0, 255.0), \
-				false)
+	_add_body("Electron", \
+			1.0, "electron_mass", \
+			-1.0, "elementary_charge", \
+			1.0, "electron_radius", \
+			Vector3(10.0, 0.0, 0.0), "proton_radius", \
+			Vector3(), "nanometer", "nanosecond", \
+			Vector3(255.0, 255.0, 0.0), \
+			true)
 	
 	# Do not modify
 	var furthest_dist := _calc_furthest_dist()
@@ -63,6 +49,7 @@ func _process(_delta: float) -> void:
 	while elapsed_time < 0.75 * max_frame_time_us:
 		_calc_fields_and_potentials()
 		_calibrate_bodies()
+		_calculate_accelerations()
 		timestep = _calc_timestep()
 		_move_bodies(timestep)
 		_collide_bodies()
@@ -125,6 +112,13 @@ func _calibrate_bodies() -> void:
 		if body == null:
 			continue
 		body.calibrate()
+
+# Calculate the accelerations for all bodies
+func _calculate_accelerations() -> void:
+	for body in bodies:
+		if body == null:
+			continue
+		body.calc_coord_acceleration()
 
 ## Calculates timesteps between each pair, and returns the smallest one. If
 ## there is only one body, a default value is used.

@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-func _process(float) -> void:
+func _process(delta: float) -> void:
 	var position = $"../Player".position
 	var distance = position.length()
 	var coord_time = $"..".coord_time
