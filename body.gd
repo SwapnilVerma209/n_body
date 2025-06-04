@@ -80,10 +80,8 @@ func get_schwarz_radius() -> float:
 ## used if the orbital speed is expected to be comparable to light speed.
 func get_rest_orbit_speed(other) -> float:
 	var low := 0.0
-	var mid = get_approx_rest_orbit_speed(other)**2.0
 	var high = Global.light_speed**2.0
-	if is_equal_approx(mid, low) or mid > high:
-		mid = high * 0.5
+	var mid = high * 0.5
 	var total_mass := get_total_mass()
 	var black_hole_radius := get_black_hole_radius()
 	var other_total_mass = other.get_total_mass()
@@ -171,12 +169,14 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 		field = (-Global.grav_const * total_mass * rad_ratio / \
 				(rest_radius**2.0)) * vector_to_other.normalized()
 	else:
+		var rest_distance_squared := _rest_distance_squared(other_position)
 		field = (-Global.grav_const * total_mass / \
-				(distance**3.0)) * vector_to_other
+				rest_distance_squared) * vector_to_other.normalized()
 	if !coord_velocity.is_zero_approx():
 		var field_parallel = field.project(coord_velocity)
 		var field_orthogonal = field - field_parallel
-		field = field_parallel * _coord_lorentz_recip + field_orthogonal
+		field = (field_parallel * _coord_lorentz_recip + field_orthogonal) * \
+				_coord_lorentz_recip**2.0
 	var potential: float
 	var potential_sign = -sign(total_mass)
 	if is_inside:
@@ -185,8 +185,8 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 		if !coord_velocity.is_zero_approx():
 			var surface_field_par = surface_field.project(coord_velocity)
 			var surface_field_orth = surface_field - surface_field_par
-			surface_field = surface_field_par * _coord_lorentz_recip + \
-					surface_field_orth
+			surface_field = (surface_field_par * _coord_lorentz_recip + \
+					surface_field_orth) * _coord_lorentz_recip**2.0
 		potential = potential_sign * (surface_field.length() * radius_towards \
 				+ (field.length() * (radius_towards**2.0 - distance**2.0) / \
 				(2.0 * distance)))
@@ -212,14 +212,16 @@ func electromagnetic_field_at(other_position: Vector3) -> Vector3:
 	var field: Vector3
 	if is_inside:
 		field = (Global.coulomb_const * charge * rad_ratio / \
-				(rest_radius ** 2)) * vector_to_other.normalized()
+				(rest_radius**2.0)) * vector_to_other.normalized()
 	else:
+		var rest_distance_squared := _rest_distance_squared(other_position)
 		field = (Global.coulomb_const * charge / \
-				(distance**3.0)) * vector_to_other
+				rest_distance_squared) * vector_to_other.normalized()
 	if !coord_velocity.is_zero_approx():
 		var field_parallel = field.project(coord_velocity)
 		var field_orthogonal = field - field_parallel
-		field = field_parallel * _coord_lorentz_recip + field_orthogonal
+		field = (field_parallel * _coord_lorentz_recip + field_orthogonal) * \
+				_coord_lorentz_recip**2.0
 	return field
 
 ## Calibrates the body based on length contraction, escape velocity, and
@@ -422,6 +424,17 @@ func reset() -> void:
 	_infalling_vel = coord_velocity
 	_infall_lorentz_recip = _coord_lorentz_recip
 
+## Returns the square of the distance from this body to the other position in
+## this body's rest frame. To be used to calculate gravitational and
+## electromagnetic fields.
+func _rest_distance_squared(other_position: Vector3) -> float:
+	var vector_to_other := other_position - position
+	if coord_velocity.is_zero_approx():
+		return vector_to_other.length_squared()
+	var vector_par := vector_to_other.project(coord_velocity)
+	var vector_orth := vector_to_other - vector_par
+	return (vector_par / _coord_lorentz_recip + vector_orth).length_squared()
+
 ## Caclulates the effective mass of the electromagnetic field.
 func _calc_em_field_mass() -> void:
 	em_field_mass = 0.0
@@ -434,7 +447,7 @@ func _calc_em_field_mass() -> void:
 	em_field_mass = (3.0 * Global.coulomb_const * charge**2.0) / \
 			(5.0 * rest_radius * Global.light_speed**2.0)
 
-## Gets the color of the body
+## Gets the color of the body.
 func _get_color() -> Vector3:
 	return mesh.material.get_shader_parameter("color")
 
