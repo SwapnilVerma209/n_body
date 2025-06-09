@@ -1,39 +1,58 @@
 extends Node3D
 
-const _MAX_CALIBRATION_ROUNDS := 10
-
+var should_multithread: bool
 var max_frame_time_us: float
 var bodies := []
+var init_num_bodies: int
+var max_threads := OS.get_processor_count()
+var threads := []
+var num_threads: int
+var num_bodies_per_thread: int
 var timestep: float
 var coord_time := 0.0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Set precision and units here
-	Global.set_precision(6)
-	Global.set_scales("proton_radius", "atomic_time", "proton_mass", \
-			"elementary_charge")
+	var precision := 3
+	var space_unit := "kilometer"
+	var time_unit := "millisecond"
+	var mass_unit := "kilogram"
+	var charge_unit := "elementary_charge"
+	Global.set_precision(precision)
+	Global.set_scales(space_unit, time_unit, mass_unit, charge_unit)
 	
 	# Add your bodies here
-	var proton := _add_body("Proton", \
-			1.0, "proton_mass", \
-			1.0, "elementary_charge", \
-			1.0, "proton_radius", \
-			Vector3(), "nanometer", \
-			Vector3(), "nanometer", "nanosecond", \
-			Vector3(255.0, 0.0, 0.0), \
+	var black_hole := _add_body("8SBH", \
+			8.0, "solar_mass", \
+			0.0, charge_unit, \
+			0.0, space_unit, \
+			Vector3(), space_unit, \
+			Vector3(), space_unit, time_unit, 
+			Vector3(),
 			true)
-	var electron := _add_body("Electron", \
-			1.0, "electron_mass", \
-			-1.0, "elementary_charge", \
-			1.0, "electron_radius", \
-			Vector3(1.0, 0.0, 0.0), "bohr_radius", \
-			Vector3(), "nanometer", "nanosecond", \
-			Vector3(255.0, 255.0, 0.0), \
+	var black_hole_radius := black_hole.get_black_hole_radius()
+	var rotation_matrix := Transform3D( \
+			Vector3(0.0, 1.0, 0.0), \
+			Vector3(-1.0, 0.0, 0.0), \
+			Vector3(0.0, 0.0, 1.0), \
+			Vector3())
+	for i in range(50):
+		var distance := randf_range(1.1, 10.0) * black_hole_radius
+		var position := distance * Vector3(\
+				randf_range(-1.0, 1.0), \
+				randf_range(-1.0, 1.0), \
+				0.0).normalized()
+		var speed := black_hole.get_grav_rest_orbit_speed(distance)
+		var velocity := speed * (rotation_matrix * position).normalized()
+		_add_body("%d" % i, \
+			1.0, "kilogram", \
+			0.0, charge_unit, \
+			2.0, "kilometer", \
+			position, space_unit, \
+			velocity, space_unit, time_unit, 
+			Vector3(255.0, 255.0, 255.0),
 			true)
-	var speed := proton.get_rest_orbit_speed(electron)
-	electron.coord_velocity = speed * Vector3(0.0, 1.0, 0.0)
-	electron.reset()
 	
 	# Do not modify
 	var furthest_dist := _calc_furthest_dist()
@@ -44,6 +63,14 @@ func _ready() -> void:
 		max_frame_time_us = 1e6 / Engine.max_fps
 	else:
 		max_frame_time_us = 1e6 / 120.0
+	init_num_bodies = len(bodies)
+	should_multithread = (init_num_bodies >= max_threads * 2)
+	if !should_multithread:
+		return
+	num_bodies_per_thread = init_num_bodies / max_threads
+	for i in range(max_threads):
+		threads.append(Thread.new())
+	num_threads = len(threads)
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta: float) -> void:
@@ -98,30 +125,96 @@ func _calc_furthest_dist() -> float:
 
 ## Calculates fields and potentials for every body in the simulation
 func _calc_fields_and_potentials() -> void:
-	for i in range(bodies.size()):
+	if !should_multithread:
+		for i in range(bodies.size()):
+			if bodies[i] == null:
+				continue
+			for j in range(i+1, bodies.size()):
+				if bodies[j] == null:
+					continue
+				bodies[i].add_newton_grav_field_and_potential(bodies[j])
+				bodies[i].add_electromagnetic_force(bodies[j])
+				bodies[j].add_newton_grav_field_and_potential(bodies[i])
+				bodies[j].add_electromagnetic_force(bodies[i])
+		return
+	var end: int
+	for i in range(max_threads-1):
+		var start := i * num_bodies_per_thread
+		end = start + num_bodies_per_thread
+		threads[i].start(_calc_field_and_pot_thread.bind(start, end))
+	var start := end
+	end = len(bodies)
+	threads[num_threads-1].start(_calc_field_and_pot_thread.bind(start, end))
+	for thread in threads:
+		thread.wait_to_finish()
+
+## Function for other threads to calculate fields and potentials.
+func _calc_field_and_pot_thread(start: int, end: int) -> void:
+	Thread.set_thread_safety_checks_enabled(false)
+	for i in range(start, end):
 		if bodies[i] == null:
 			continue
-		for j in range(i+1, bodies.size()):
+		for j in range(len(bodies)):
+			if j == i:
+				continue
 			if bodies[j] == null:
 				continue
 			bodies[i].add_newton_grav_field_and_potential(bodies[j])
 			bodies[i].add_electromagnetic_force(bodies[j])
-			bodies[j].add_newton_grav_field_and_potential(bodies[i])
-			bodies[j].add_electromagnetic_force(bodies[i])
 
-## Performs one round of calibration for every body in the simulation
+## Calibrates every body in the simulation
 func _calibrate_bodies() -> void:
-	for body in bodies:
-		if body == null:
-			continue
-		body.calibrate()
+	if !should_multithread:
+		for body in bodies:
+			if body == null:
+				continue
+			body.calibrate()
+		return
+	var end: int
+	for i in range(max_threads-1):
+		var start := i * num_bodies_per_thread
+		end = start + num_bodies_per_thread
+		threads[i].start(_calibrate_bodies_thread.bind(start, end))
+	var start := end
+	end = len(bodies)
+	threads[num_threads-1].start(_calibrate_bodies_thread.bind(start, end))
+	for thread in threads:
+		thread.wait_to_finish()
 
-# Calculate the accelerations for all bodies
-func _calculate_accelerations() -> void:
-	for body in bodies:
-		if body == null:
+## Function for other threads to calibrate bodies
+func _calibrate_bodies_thread(start: int, end: int) -> void:
+	Thread.set_thread_safety_checks_enabled(false)
+	for i in range(start, end):
+		if bodies[i] == null:
 			continue
-		body.calc_coord_acceleration()
+		bodies[i].calibrate()
+
+## Calculate the accelerations for all bodies
+func _calculate_accelerations() -> void:
+	if !should_multithread:
+		for body in bodies:
+			if body == null:
+				continue
+			body.calc_coord_acceleration()
+		return
+	var end: int
+	for i in range(max_threads-1):
+		var start := i * num_bodies_per_thread
+		end = start + num_bodies_per_thread
+		threads[i].start(_calc_accel_thread.bind(start, end))
+	var start := end
+	end = len(bodies)
+	threads[num_threads-1].start(_calc_accel_thread.bind(start, end))
+	for thread in threads:
+		thread.wait_to_finish()
+
+## Function for other threads to calculate accelerations
+func _calc_accel_thread(start: int, end: int) -> void:
+	Thread.set_thread_safety_checks_enabled(false)
+	for i in range(start, end):
+		if bodies[i] == null:
+			continue
+		bodies[i].calc_coord_acceleration()
 
 ## Calculates timesteps between each pair, and returns the smallest one. If
 ## there is only one body, a default value is used.
@@ -141,7 +234,7 @@ func _calc_timestep() -> float:
 				max_timestep = timestep_bounds[1]
 			if max_timestep <= min_timestep:
 				return max_timestep
-	if is_zero_approx(min_timestep):
+	if min_timestep < Global.DEFAULT_TIMESTEP:
 		return Global.DEFAULT_TIMESTEP
 	return min_timestep
 
@@ -167,10 +260,29 @@ func _collide_bodies() -> void:
 
 ## Resets every body
 func _reset_bodies() -> void:
-	for body in bodies:
-		if body == null:
+	if !should_multithread:
+		for body in bodies:
+			if body == null:
+				continue
+			body.reset()
+		return
+	var end: int
+	for i in range(max_threads-1):
+		var start := i * num_bodies_per_thread
+		end = start + num_bodies_per_thread
+		threads[i].start(_reset_bodies_thread.bind(start, end))
+	var start := end
+	end = len(bodies)
+	threads[num_threads-1].start(_reset_bodies_thread.bind(start, end))
+	for thread in threads:
+		thread.wait_to_finish()
+
+func _reset_bodies_thread(start: int, end: int) -> void:
+	Thread.set_thread_safety_checks_enabled(false)
+	for i in range(start, end):
+		if bodies[i] == null:
 			continue
-		body.reset()
+		bodies[i].reset()
 
 ## Prints all the bodies' information
 func _print_bodies() -> void:

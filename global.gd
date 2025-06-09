@@ -1,8 +1,8 @@
 extends Node
 
 const NUM_DIGITS := 15
-
 const DEFAULT_TIMESTEP := 1e-3
+const MIN_TIMESTEP := 1e-7
 const MIN_DISPLAY_RADIUS := 0.1
 
 # Fundamental constants in SI units

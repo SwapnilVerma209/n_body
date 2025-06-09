@@ -91,7 +91,7 @@ func get_rest_orbit_speed(other) -> float:
 	var approx_em_accel_times_dist = \
 			-(Global.coulomb_const * charge * other.charge) / \
 			(distance * other_total_mass)
-	for i in range(49):
+	for i in range(50):
 		var accel_times_dist = grav_accel_times_dist + \
 				approx_em_accel_times_dist * \
 				sqrt(1.0 - (mid / Global.light_speed**2.0))
@@ -287,8 +287,8 @@ func calc_timestep_bounds(other) -> Array:
 		high_accel_mag = accel_mag
 	var max_timestep: float
 	var min_timestep: float
-	if is_zero_approx(low_accel_mag):
-		if is_zero_approx(slow_speed):
+	if low_accel_mag < Global.max_space_error:
+		if slow_speed < Global.max_space_error:
 			max_timestep = Global.DEFAULT_TIMESTEP
 			min_timestep = Global.DEFAULT_TIMESTEP
 		else:
@@ -297,8 +297,8 @@ func calc_timestep_bounds(other) -> Array:
 		max_timestep = (-slow_speed + \
 				sqrt(slow_speed**2.0 + 2.0*low_accel_mag*max_dist)) / \
 				low_accel_mag
-	if is_zero_approx(high_accel_mag):
-		if is_zero_approx(fast_speed):
+	if high_accel_mag < Global.max_space_error:
+		if fast_speed < Global.max_space_error:
 			min_timestep = Global.DEFAULT_TIMESTEP
 		else:
 			min_timestep = min_dist / fast_speed
@@ -306,11 +306,11 @@ func calc_timestep_bounds(other) -> Array:
 		min_timestep = (-fast_speed + \
 				sqrt(fast_speed**2.0 + 2.0*high_accel_mag*min_dist)) / \
 				high_accel_mag
-	if is_zero_approx(max_timestep):
-		max_timestep = Global.DEFAULT_TIMESTEP
-		min_timestep = Global.DEFAULT_TIMESTEP
-	elif is_zero_approx(min_timestep):
-		min_timestep = Global.DEFAULT_TIMESTEP
+	if max_timestep < Global.MIN_TIMESTEP:
+		max_timestep = Global.MIN_TIMESTEP
+		min_timestep = Global.MIN_TIMESTEP
+	elif min_timestep < Global.MIN_TIMESTEP:
+		min_timestep = Global.MIN_TIMESTEP
 	return [min_timestep, max_timestep]
 
 ## Move the body to its new position, and calculate its new velocity. Increment
