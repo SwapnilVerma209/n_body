@@ -361,9 +361,9 @@ func is_colliding_with(other) -> bool:
 ## of mass, and marks the other body for deletion. Also turns the body into a
 ## black hole if the conditions are met. To be used during collisions.
 func absorb(other) -> void:
-	var new_name_text = get_node("Label").text
+	var new_name_text = get_label_text()
 	if mass < other.mass:
-		new_name_text = other.name_text
+		new_name_text = other.get_label_text()
 	var new_mass = mass + other.mass
 	var new_charge = charge + other.charge
 	var new_position := get_center_of_mass_with(other)
@@ -384,6 +384,14 @@ func absorb(other) -> void:
 	set_display_radius(rest_radius)
 	_try_to_turn_into_black_hole()
 	other.should_be_deleted = true
+
+## Gets the name of the body.
+func get_label_text() -> String:
+	return get_node("Label").text
+
+## Sets the name of the body.
+func set_label_text(name: String) -> void:
+	get_node("Label").text = name
 
 ## Returns the relativistic mass of the body based on the coordinate frame.
 func get_relativistic_mass() -> float:

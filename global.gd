@@ -34,8 +34,8 @@ const SPACE_SCALES := {
 	"observable_universe_radius" : 4.4e26
 } # Space units expressed in m
 const TIME_SCALES := {
-	"attosecond": 1e-18,
 	"jiffy": 3e-24,
+	"attosecond": 1e-18,
 	"atomic_time": 2.42e-17,
 	"femtosecond": 1e-15,
 	"nanosecond" : 1e-9,

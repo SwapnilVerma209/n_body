@@ -15,43 +15,59 @@ var coord_time := 0.0
 func _ready() -> void:
 	# Set precision and units here
 	var precision := 3
-	var space_unit := "kilometer"
-	var time_unit := "millisecond"
+	var space_unit := "proton_radius"
+	var time_unit := "attosecond"
 	var mass_unit := "kilogram"
 	var charge_unit := "elementary_charge"
 	Global.set_precision(precision)
 	Global.set_scales(space_unit, time_unit, mass_unit, charge_unit)
 	
 	# Add your bodies here
-	var black_hole := _add_body("8SBH", \
-			8.0, "solar_mass", \
+	var micro_bh := _add_body("Micro BH", \
+			1e13, "kilogram", \
 			0.0, charge_unit, \
 			0.0, space_unit, \
 			Vector3(), space_unit, \
-			Vector3(), space_unit, time_unit, 
-			Vector3(),
+			Vector3(), space_unit, time_unit, \
+			Vector3(), \
 			true)
-	var black_hole_radius := black_hole.get_black_hole_radius()
+	var micro_bh_rad := micro_bh.get_black_hole_radius()
 	var rotation_matrix := Transform3D( \
 			Vector3(0.0, 1.0, 0.0), \
 			Vector3(-1.0, 0.0, 0.0), \
 			Vector3(0.0, 0.0, 1.0), \
 			Vector3())
 	for i in range(50):
-		var distance := randf_range(1.1, 10.0) * black_hole_radius
+		var distance := micro_bh_rad * randf_range(1.1, 50.0)
 		var position := distance * Vector3(\
 				randf_range(-1.0, 1.0), \
 				randf_range(-1.0, 1.0), \
 				0.0).normalized()
-		var speed := black_hole.get_grav_rest_orbit_speed(distance)
+		var speed := micro_bh.get_grav_rest_orbit_speed(distance)
 		var velocity := speed * (rotation_matrix * position).normalized()
-		_add_body("%d" % i, \
-			1.0, "kilogram", \
-			0.0, charge_unit, \
-			2.0, "kilometer", \
+		_add_body("p", \
+			1.0, "proton_mass", \
+			1.0, charge_unit, \
+			1.0, "proton_radius", \
 			position, space_unit, \
 			velocity, space_unit, time_unit, 
-			Vector3(255.0, 255.0, 255.0),
+			Vector3(255.0, 0.0, 0.0),
+			true)
+	for i in range(50):
+		var distance := micro_bh_rad * randf_range(1.1, 50.0)
+		var position := distance * Vector3(\
+				randf_range(-1.0, 1.0), \
+				randf_range(-1.0, 1.0), \
+				0.0).normalized()
+		var speed := micro_bh.get_grav_rest_orbit_speed(distance)
+		var velocity := speed * (rotation_matrix * position).normalized()
+		_add_body("e", \
+			1.0, "electron_mass", \
+			-1.0, charge_unit, \
+			1.0, "electron_radius", \
+			position, space_unit, \
+			velocity, space_unit, time_unit, 
+			Vector3(255.0, 255.0, 0.0),
 			true)
 	
 	# Do not modify
