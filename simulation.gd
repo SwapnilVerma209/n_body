@@ -32,41 +32,32 @@ func _ready() -> void:
 			Vector3(), \
 			true)
 	var micro_bh_rad := micro_bh.get_black_hole_radius()
-	var rotation_matrix := Transform3D( \
-			Vector3(0.0, 1.0, 0.0), \
-			Vector3(-1.0, 0.0, 0.0), \
-			Vector3(0.0, 0.0, 1.0), \
-			Vector3())
 	for i in range(50):
-		var distance := micro_bh_rad * randf_range(1.1, 50.0)
+		var distance := micro_bh_rad * randf_range(1.1, 100.0)
 		var position := distance * Vector3(\
 				randf_range(-1.0, 1.0), \
 				randf_range(-1.0, 1.0), \
-				0.0).normalized()
-		var speed := micro_bh.get_grav_rest_orbit_speed(distance)
-		var velocity := speed * (rotation_matrix * position).normalized()
+				randf_range(-1.0, 1.0)).normalized()
 		_add_body("p", \
-			1.0, "proton_mass", \
-			1.0, charge_unit, \
-			1.0, "proton_radius", \
-			position, space_unit, \
-			velocity, space_unit, time_unit, 
-			Vector3(255.0, 0.0, 0.0),
-			true)
+				1.0, "proton_mass", \
+				1.0, charge_unit, \
+				1.0, "proton_radius", \
+				position, space_unit, \
+				Vector3(), space_unit, time_unit, \
+				Vector3(255.0, 0.0, 0.0), \
+				true)
 	for i in range(50):
-		var distance := micro_bh_rad * randf_range(1.1, 50.0)
+		var distance := micro_bh_rad * randf_range(1.1, 1000.0)
 		var position := distance * Vector3(\
 				randf_range(-1.0, 1.0), \
 				randf_range(-1.0, 1.0), \
-				0.0).normalized()
-		var speed := micro_bh.get_grav_rest_orbit_speed(distance)
-		var velocity := speed * (rotation_matrix * position).normalized()
+				randf_range(-1.0, 1.0)).normalized()
 		_add_body("e", \
 			1.0, "electron_mass", \
 			-1.0, charge_unit, \
 			1.0, "electron_radius", \
 			position, space_unit, \
-			velocity, space_unit, time_unit, 
+			Vector3(), space_unit, time_unit, 
 			Vector3(255.0, 255.0, 0.0),
 			true)
 	
