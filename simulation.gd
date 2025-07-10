@@ -16,50 +16,33 @@ func _ready() -> void:
 	# Set precision and units here
 	var precision := 3
 	var space_unit := "proton_radius"
-	var time_unit := "attosecond"
-	var mass_unit := "kilogram"
+	var time_unit := "jiffy"
+	var mass_unit := "proton_mass"
 	var charge_unit := "elementary_charge"
 	Global.set_precision(precision)
 	Global.set_scales(space_unit, time_unit, mass_unit, charge_unit)
 	
 	# Add your bodies here
-	var micro_bh := _add_body("Micro BH", \
-			1e13, "kilogram", \
-			0.0, charge_unit, \
-			0.0, space_unit, \
-			Vector3(), space_unit, \
-			Vector3(), space_unit, time_unit, \
-			Vector3(), \
-			true)
-	var micro_bh_rad := micro_bh.get_black_hole_radius()
-	for i in range(50):
-		var distance := micro_bh_rad * randf_range(1.1, 100.0)
-		var position := distance * Vector3(\
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0)).normalized()
-		_add_body("p", \
-				1.0, "proton_mass", \
-				1.0, charge_unit, \
-				1.0, "proton_radius", \
-				position, space_unit, \
-				Vector3(), space_unit, time_unit, \
-				Vector3(255.0, 0.0, 0.0), \
-				true)
-	for i in range(50):
-		var distance := micro_bh_rad * randf_range(1.1, 1000.0)
-		var position := distance * Vector3(\
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0), \
-				randf_range(-1.0, 1.0)).normalized()
-		_add_body("e", \
-			1.0, "electron_mass", \
-			-1.0, charge_unit, \
-			1.0, "electron_radius", \
-			position, space_unit, \
-			Vector3(), space_unit, time_unit, 
-			Vector3(255.0, 255.0, 0.0),
-			true)
+	_add_body(
+		"Positron",
+		1.0, "electron_mass",
+		1.0, charge_unit,
+		1.0, "electron_radius",
+		Vector3(), space_unit,
+		Vector3(), space_unit, time_unit,
+		Vector3(255.0, 0.0, 0.0),
+		true
+	)
+	_add_body(
+		"???",
+		-1.0, "electron_mass",
+		-1.0, charge_unit,
+		1.0, "electron_radius",
+		Vector3(20.0, 0.0, 0.0), "proton_radius",
+		Vector3(), space_unit, time_unit,
+		Vector3(255.0, 255.0, 0.0),
+		false
+	)
 	
 	# Do not modify
 	var furthest_dist := _calc_furthest_dist()

@@ -176,24 +176,20 @@ func newton_grav_field_and_potential_at(other_position: Vector3) -> Array:
 	var radius_towards := get_radius_towards(other_position)
 	var is_inside := distance < radius_towards
 	var coord_lorentz_recip_sqrd := _coord_lorentz_recip**2.0
-	var field: Vector3
 	if is_inside:
-		field = (-Global.grav_const * total_mass / (rest_radius**3.0)) * \
+		var field = (-Global.grav_const * total_mass / (rest_radius**3.0)) * \
 				coord_lorentz_recip_sqrd * vector_to_other
-	else:
-		field = (-Global.grav_const * total_mass / (rest_distance**3.0)) * \
-				coord_lorentz_recip_sqrd * vector_to_other
-	var potential: float
-	if is_inside:
 		var surface_potential = (-Global.grav_const * total_mass / \
 				rest_radius) * coord_lorentz_recip_sqrd
 		var under_potential = (Global.grav_const * total_mass * \
 				(distance**2.0 - radius_towards**2.0) / \
 				(2.0 * rest_radius**3.0)) * coord_lorentz_recip_sqrd
-		potential = surface_potential + under_potential
-	else:
-		var potential_sign = -sign(total_mass)
-		potential = potential_sign * field.length() * distance
+		var potential = surface_potential + under_potential
+		return [field, potential]
+	var field = (-Global.grav_const * total_mass / (rest_distance**3.0)) * \
+			coord_lorentz_recip_sqrd * vector_to_other
+	var potential_sign = -sign(total_mass)
+	var potential = potential_sign * field.length() * distance
 	return [field, potential]
 
 ## Adds the effect of the other body's electromagnetic field to this body.
@@ -217,9 +213,9 @@ func electromagnetic_field_at(other_position: Vector3) -> Vector3:
 	if is_inside:
 		field = (Global.coulomb_const * charge / (rest_radius**3.0)) * \
 				coord_lorentz_recip_sqrd * vector_to_other
-	else:
-		field = (Global.coulomb_const * charge / rest_distance**3.0) * \
-				coord_lorentz_recip_sqrd * vector_to_other
+		return field
+	field = (Global.coulomb_const * charge / rest_distance**3.0) * \
+			coord_lorentz_recip_sqrd * vector_to_other
 	return field
 
 ## Calibrates the body based on length contraction, escape velocity, and
